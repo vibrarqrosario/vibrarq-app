@@ -1,0 +1,392 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Enums ──────────────────────────────────────────────
+enum Role {
+  SOCIO
+  COMMUNITY_MANAGER
+  CLIENTE
+}
+
+enum BudgetType {
+  ORIGINAL
+  ADICIONAL
+}
+
+enum BudgetStatus {
+  ENVIADO
+  PROCESO
+  APROBADO
+}
+
+enum EstadoPago {
+  PENDIENTE
+  PARCIAL
+  PAGADO
+  VENCIDO
+}
+
+enum EstadoOC {
+  BORRADOR
+  ENVIADA
+  RECIBIDA
+}
+
+enum PostEstado {
+  IDEA
+  DISENO
+  APROBACION
+  PROGRAMADO
+  PUBLICADO
+}
+
+enum Plataforma {
+  INSTAGRAM
+  TIKTOK
+  FACEBOOK
+}
+
+enum TipoMovimiento {
+  INGRESO
+  EGRESO
+}
+
+enum FuenteCosto {
+  CIFRAS
+  CAPSF
+  PROPIA
+}
+
+// ── Identidad / clientes ─────────────────────────────
+model Usuario {
+  id              String        @id @default(cuid())
+  email           String        @unique
+  passwordHash    String
+  nombre          String
+  role            Role
+  clienteId       String?
+  cliente         Cliente?      @relation(fields: [clienteId], references: [id])
+  avisos          Aviso[]
+  posts           Post[]        @relation("PostAsignado")
+  eventos         Evento[]      @relation("EventoAsignados")
+  feedPosts       FeedPost[]
+  comentarios     Comentario[]
+  likes           Like[]
+  ordenesEmitidas OrdenCompra[]
+  createdAt       DateTime      @default(now())
+}
+
+model Cliente {
+  id       String    @id @default(cuid())
+  nombre   String
+  email    String?
+  telefono String?
+  obras    Obra[]
+  usuarios Usuario[]
+}
+
+// ── Obra / presupuesto (núcleo) ──────────────────────
+model Obra {
+  id            String          @id @default(cuid())
+  clienteId     String
+  cliente       Cliente         @relation(fields: [clienteId], references: [id])
+  nombre        String
+  ubicacion     String?
+  tipo          String?
+  m2            Float?
+  plantas       Int?
+  fechaInicio   DateTime?
+  driveFolderId String?
+  presupuestos  Presupuesto[]
+  certificados  Certificado[]
+  ambientes     Ambiente[]
+  moodboard     MoodboardItem[]
+  carpetasDrive CarpetaDrive[]
+  cuentasCobrar CuentaCobrar[]
+  posts         Post[]
+  feedPosts     FeedPost[]
+  eventos       Evento[]
+}
+
+model Presupuesto {
+  id            String        @id @default(cuid())
+  obraId        String
+  obra          Obra          @relation(fields: [obraId], references: [id])
+  tipo          BudgetType
+  numero        String
+  nombre        String
+  detalle       String?
+  estado        BudgetStatus  @default(ENVIADO)
+  fecha         DateTime
+  etapas        Etapa[]
+  ordenesCompra OrdenCompra[]
+}
+
+model Etapa {
+  id            String      @id @default(cuid())
+  presupuestoId String
+  presupuesto   Presupuesto @relation(fields: [presupuestoId], references: [id])
+  code          String
+  nombre        String
+  items         Item[]
+}
+
+model Item {
+  id               String            @id @default(cuid())
+  etapaId          String
+  etapa            Etapa             @relation(fields: [etapaId], references: [id])
+  codigoCifras     String
+  desc             String
+  unidad           String
+  cantidad         Float             @default(0)
+  costoProveedor   Float
+  precioVenta      Float
+  dias             Int               @default(0)
+  avance           Int               @default(0)
+  ratioMaterial    Float             @default(0)
+  ordenCompraItems OrdenCompraItem[]
+  certificadoItems CertificadoItem[]
+}
+
+model CatalogoCifrasItem {
+  id            String      @id @default(cuid())
+  codigo        String      @unique
+  rubro         String
+  nombreRubro   String
+  desc          String
+  unidad        String
+  costoRef      Float
+  ratioMaterial Float
+  fuente        FuenteCosto @default(CIFRAS)
+}
+
+// ── Certificados ──────────────────────────────────────
+model Certificado {
+  id              String            @id @default(cuid())
+  obraId          String
+  obra            Obra              @relation(fields: [obraId], references: [id])
+  periodo         String
+  totalCosto      Float
+  totalVenta      Float
+  estadoPago      EstadoPago        @default(PENDIENTE)
+  pdfProveedorUrl String?
+  pdfClienteUrl   String?
+  items           CertificadoItem[]
+  createdAt       DateTime          @default(now())
+}
+
+model CertificadoItem {
+  id            String      @id @default(cuid())
+  certificadoId String
+  certificado   Certificado @relation(fields: [certificadoId], references: [id])
+  itemId        String
+  item          Item        @relation(fields: [itemId], references: [id])
+  avance        Int
+  costo         Float
+  venta         Float
+}
+
+// ── Ambientes / moodboard / drive ─────────────────────
+model Ambiente {
+  id          String  @id @default(cuid())
+  obraId      String
+  obra        Obra    @relation(fields: [obraId], references: [id])
+  nombre      String
+  nota        String?
+  fotoAntes   String?
+  fotoDespues String?
+  terminado   Boolean @default(false)
+}
+
+model MoodboardItem {
+  id     String  @id @default(cuid())
+  obraId String
+  obra   Obra    @relation(fields: [obraId], references: [id])
+  tipo   String
+  url    String?
+  label  String?
+  hex    String?
+}
+
+model CarpetaDrive {
+  id       String         @id @default(cuid())
+  obraId   String
+  obra     Obra           @relation(fields: [obraId], references: [id])
+  nombre   String
+  archivos ArchivoDrive[]
+}
+
+model ArchivoDrive {
+  id          String       @id @default(cuid())
+  carpetaId   String
+  carpeta     CarpetaDrive @relation(fields: [carpetaId], references: [id])
+  nombre      String
+  extension   String
+  version     Int          @default(1)
+  driveFileId String?
+  autor       String?
+  pesoBytes   Int?
+  createdAt   DateTime     @default(now())
+}
+
+// ── Finanzas ───────────────────────────────────────────
+model MovimientoCaja {
+  id       String         @id @default(cuid())
+  tipo     TipoMovimiento
+  monto    Float
+  fecha    DateTime
+  concepto String
+  obraId   String?
+}
+
+model CuentaCobrar {
+  id          String     @id @default(cuid())
+  obraId      String
+  obra        Obra       @relation(fields: [obraId], references: [id])
+  monto       Float
+  vencimiento DateTime
+  estado      EstadoPago @default(PENDIENTE)
+}
+
+model CuentaPagar {
+  id            String       @id @default(cuid())
+  proveedor     String
+  monto         Float
+  vencimiento   DateTime
+  estado        EstadoPago   @default(PENDIENTE)
+  ordenCompraId String?
+  ordenCompra   OrdenCompra? @relation(fields: [ordenCompraId], references: [id])
+}
+
+// ── Órdenes de compra ──────────────────────────────────
+model Proveedor {
+  id       String        @id @default(cuid())
+  nombre   String
+  contacto String?
+  ordenes  OrdenCompra[]
+}
+
+model OrdenCompra {
+  id            String            @id @default(cuid())
+  codigo        String            @unique
+  presupuestoId String
+  presupuesto   Presupuesto       @relation(fields: [presupuestoId], references: [id])
+  proveedorId   String
+  proveedor     Proveedor         @relation(fields: [proveedorId], references: [id])
+  estado        EstadoOC          @default(BORRADOR)
+  pdfUrl        String?
+  emitidaPorId  String?
+  emitidaPor    Usuario?          @relation(fields: [emitidaPorId], references: [id])
+  items         OrdenCompraItem[]
+  cuentasPagar  CuentaPagar[]
+  createdAt     DateTime          @default(now())
+}
+
+model OrdenCompraItem {
+  id            String      @id @default(cuid())
+  ordenCompraId String
+  ordenCompra   OrdenCompra @relation(fields: [ordenCompraId], references: [id])
+  itemId        String
+  item          Item        @relation(fields: [itemId], references: [id])
+  cantidad      Float
+}
+
+// ── Planner de redes ────────────────────────────────────
+model Post {
+  id                String     @id @default(cuid())
+  fecha             DateTime
+  tipo              String
+  plataforma        Plataforma
+  estado            PostEstado @default(IDEA)
+  asignadoId        String?
+  asignado          Usuario?   @relation("PostAsignado", fields: [asignadoId], references: [id])
+  obraId            String?
+  obra              Obra?      @relation(fields: [obraId], references: [id])
+  prioridad         String?
+  notas             String?
+  metricaAlcance    Int?
+  metricaEngagement Float?
+}
+
+// ── Agenda colaborativa ─────────────────────────────────
+model FeedPost {
+  id          String       @id @default(cuid())
+  autorId     String
+  autor       Usuario      @relation(fields: [autorId], references: [id])
+  texto       String?
+  fotoUrl     String?
+  obraId      String?
+  obra        Obra?        @relation(fields: [obraId], references: [id])
+  createdAt   DateTime     @default(now())
+  likes       Like[]
+  comentarios Comentario[]
+}
+
+model Like {
+  id         String   @id @default(cuid())
+  feedPostId String
+  feedPost   FeedPost @relation(fields: [feedPostId], references: [id])
+  usuarioId  String
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id])
+
+  @@unique([feedPostId, usuarioId])
+}
+
+model Comentario {
+  id         String   @id @default(cuid())
+  feedPostId String
+  feedPost   FeedPost @relation(fields: [feedPostId], references: [id])
+  autorId    String
+  autor      Usuario  @relation(fields: [autorId], references: [id])
+  texto      String
+  createdAt  DateTime @default(now())
+}
+
+model Evento {
+  id        String    @id @default(cuid())
+  tipo      String
+  fecha     DateTime
+  obraId    String?
+  obra      Obra?     @relation(fields: [obraId], references: [id])
+  asignados Usuario[] @relation("EventoAsignados")
+}
+
+model Aviso {
+  id        String   @id @default(cuid())
+  texto     String
+  autorId   String
+  autor     Usuario  @relation(fields: [autorId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+// ── Configuración ───────────────────────────────────────
+model Integracion {
+  id         String  @id @default(cuid())
+  proveedor  String
+  conectado  Boolean @default(false)
+  configJson Json?
+}
+
+model FuenteCostoConfig {
+  id       String      @id @default(cuid())
+  fuente   FuenteCosto
+  activa   Boolean     @default(false)
+  lastSync DateTime?
+}
+
+// ── Portal de cotización pública ────────────────────────
+model CotizacionLead {
+  id             String   @id @default(cuid())
+  nombre         String
+  email          String
+  telefono       String?
+  ubicacion      String?
+  descripcion    String?
+  estimacionJson Json?
+  createdAt      DateTime @default(now())
+}
