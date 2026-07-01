@@ -17,7 +17,6 @@ const SERVICES = [
 
 export function Landing() {
   const [slide, setSlide] = useState(0);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = 'editorial';
