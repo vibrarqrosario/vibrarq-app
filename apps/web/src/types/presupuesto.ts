@@ -7,6 +7,7 @@ export type Item = {
   costoUnitario: number;
   costoProveedor: number;
   rentabilidad: number;
+  costoUnitarioVenta: number;
   precioVenta: number;
   dias: number;
   avance: number;

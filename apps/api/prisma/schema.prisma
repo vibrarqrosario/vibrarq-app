@@ -143,11 +143,12 @@ model Item {
   codigoCifras     String
   desc             String
   unidad           String
-  cantidad         Float             @default(0)
-  costoUnitario    Float             @default(0)
-  costoProveedor   Float
-  rentabilidad     Float             @default(33)
-  precioVenta      Float
+  cantidad           Float             @default(0)
+  costoUnitario      Float             @default(0)
+  costoProveedor     Float
+  rentabilidad       Float             @default(30)
+  costoUnitarioVenta Float             @default(0)
+  precioVenta        Float
   dias             Int               @default(0)
   avance           Int               @default(0)
   ratioMaterial    Float             @default(0)

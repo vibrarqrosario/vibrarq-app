@@ -47,19 +47,22 @@ export class PresupuestosService {
     const costoUnitario = dto.costoUnitario ?? item.costoUnitario;
     const rentabilidad = dto.rentabilidad ?? item.rentabilidad;
 
-    // Si cambia costoUnitario o cantidad, recalcula costoProveedor
-    const costoProveedor = (dto.costoUnitario !== undefined || dto.cantidad !== undefined)
-      ? cantidad * costoUnitario
-      : (dto.costoProveedor ?? item.costoProveedor);
+    // subtotal proveedor = costoUnitario × cantidad
+    const costoProveedor = costoUnitario * cantidad;
 
-    // Si cambia costoProveedor o rentabilidad, recalcula precioVenta
-    const precioVenta = (dto.costoUnitario !== undefined || dto.cantidad !== undefined || dto.rentabilidad !== undefined)
-      ? costoProveedor * (1 + rentabilidad / 100)
-      : (dto.precioVenta ?? item.precioVenta);
+    // costo unitario venta: si se edita directamente, respetar; sino recalcular con rentabilidad
+    const costoUnitarioVenta = dto.costoUnitarioVenta !== undefined
+      ? dto.costoUnitarioVenta
+      : (dto.costoUnitario !== undefined || dto.rentabilidad !== undefined)
+        ? costoUnitario * (1 + rentabilidad / 100)
+        : ((item as any).costoUnitarioVenta ?? costoUnitario * (1 + rentabilidad / 100));
+
+    // subtotal venta = costoUnitarioVenta × cantidad
+    const precioVenta = costoUnitarioVenta * cantidad;
 
     return this.prisma.item.update({
       where: { id: itemId },
-      data: { ...dto, costoProveedor, precioVenta },
+      data: { ...dto, costoProveedor, costoUnitarioVenta, precioVenta },
     });
   }
 
@@ -73,7 +76,10 @@ export class PresupuestosService {
         desc: 'Nuevo ítem',
         unidad: 'u',
         cantidad: 1,
+        costoUnitario: 0,
         costoProveedor: 0,
+        rentabilidad: 30,
+        costoUnitarioVenta: 0,
         precioVenta: 0,
         dias: 1,
         avance: 0,
@@ -88,7 +94,6 @@ export class PresupuestosService {
   }
 
   async confirmarPresupuesto(presupuestoId: string) {
-    // Elimina todos los ítems con cantidad 0 y cambia estado a APROBADO
     await this.prisma.item.deleteMany({
       where: { etapa: { presupuestoId }, cantidad: 0 },
     });
@@ -113,18 +118,21 @@ export class PresupuestosService {
     const codigos = presupuesto.etapas.flatMap((e) => e.items.map((i) => i.codigoCifras));
     const catalogo = await this.prisma.catalogoCifrasItem.findMany({ where: { codigo: { in: codigos } } });
     const mapaRef = new Map(catalogo.map((c) => [c.codigo, c]));
-    const mk = (c: number) => (c ? Math.round((c * 1.5) / 1000) * 1000 : 0);
 
     const updates: Promise<unknown>[] = [];
     for (const etapa of presupuesto.etapas) {
       for (const item of etapa.items) {
         const ref = mapaRef.get(item.codigoCifras);
         if (!ref) continue;
-        const costoBase = fuente === 'VIBRARQ' && ref.costoVibrarq != null ? ref.costoVibrarq : ref.costoRef;
+        const costoUnitario = fuente === 'VIBRARQ' && ref.costoVibrarq != null ? ref.costoVibrarq : ref.costoRef;
+        const rentabilidad = item.rentabilidad ?? 30;
+        const costoUnitarioVenta = costoUnitario * (1 + rentabilidad / 100);
+        const costoProveedor = costoUnitario * item.cantidad;
+        const precioVenta = costoUnitarioVenta * item.cantidad;
         updates.push(
           this.prisma.item.update({
             where: { id: item.id },
-            data: { costoProveedor: costoBase, precioVenta: mk(costoBase) },
+            data: { costoUnitario, costoProveedor, costoUnitarioVenta, precioVenta },
           }),
         );
       }
@@ -144,15 +152,11 @@ export class PresupuestosService {
     });
   }
 
-  // Equivalente a addAdicional() en Detalle de Obra.dc.html: agrega un presupuesto
-  // adicional a la MISMA obra (nunca crea una obra nueva).
   async createAdicional(obraId: string, dto: CreateAdicionalDto) {
     const obra = await this.prisma.obra.findUnique({ where: { id: obraId } });
     if (!obra) throw new NotFoundException('Obra no encontrada');
 
     const totalPresupuestos = await this.prisma.presupuesto.count({ where: { obraId } });
-    // La obra todavía no tiene presupuesto original: este primero se crea como P-001
-    // con el catálogo CIFRAS completo (cantidad 0), igual que en el seed.
     if (totalPresupuestos === 0) {
       return this.createOriginal(obraId, dto);
     }
@@ -160,14 +164,12 @@ export class PresupuestosService {
     const countAdicionales = await this.prisma.presupuesto.count({ where: { obraId, tipo: 'ADICIONAL' } });
     const numero = `A-${String(countAdicionales + 1).padStart(3, '0')}`;
 
-    // El adicional arranca con el catálogo CIFRAS completo (cantidad 0), igual que el original.
     const catalogo = await this.prisma.catalogoCifrasItem.findMany({ orderBy: { codigo: 'asc' } });
     const porRubro = new Map<string, typeof catalogo>();
     for (const it of catalogo) {
       if (!porRubro.has(it.rubro)) porRubro.set(it.rubro, []);
       porRubro.get(it.rubro)!.push(it);
     }
-    const mk = (c: number) => (c ? Math.round((c * 1.5) / 1000) * 1000 : 0);
 
     return this.prisma.presupuesto.create({
       data: {
@@ -188,8 +190,11 @@ export class PresupuestosService {
                 desc: it.desc,
                 unidad: it.unidad,
                 cantidad: 0,
-                costoProveedor: it.costoRef,
-                precioVenta: mk(it.costoRef),
+                costoUnitario: it.costoRef,
+                costoProveedor: 0,
+                rentabilidad: 30,
+                costoUnitarioVenta: it.costoRef * 1.3,
+                precioVenta: 0,
                 dias: 0,
                 avance: 0,
                 ratioMaterial: it.ratioMaterial,
@@ -209,7 +214,6 @@ export class PresupuestosService {
       if (!porRubro.has(it.rubro)) porRubro.set(it.rubro, []);
       porRubro.get(it.rubro)!.push(it);
     }
-    const mk = (c: number) => (c ? Math.round((c * 1.5) / 1000) * 1000 : 0);
 
     return this.prisma.presupuesto.create({
       data: {
@@ -230,8 +234,11 @@ export class PresupuestosService {
                 desc: it.desc,
                 unidad: it.unidad,
                 cantidad: 0,
-                costoProveedor: it.costoRef,
-                precioVenta: mk(it.costoRef),
+                costoUnitario: it.costoRef,
+                costoProveedor: 0,
+                rentabilidad: 30,
+                costoUnitarioVenta: it.costoRef * 1.3,
+                precioVenta: 0,
                 dias: 0,
                 avance: 0,
                 ratioMaterial: it.ratioMaterial,

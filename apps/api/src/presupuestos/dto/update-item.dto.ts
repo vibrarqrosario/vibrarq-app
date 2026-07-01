@@ -27,6 +27,10 @@ export class UpdateItemDto {
 
   @IsOptional()
   @IsNumber()
+  costoUnitarioVenta?: number;
+
+  @IsOptional()
+  @IsNumber()
   precioVenta?: number;
 
   @IsOptional()

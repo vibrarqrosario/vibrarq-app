@@ -9,9 +9,9 @@ const UNIDADES = ['Gl', 'un', 'm²', 'm³', 'm', 'kg', 'hs', '%'];
 function etapaTotales(etapa: Etapa) {
   let venta = 0; let costo = 0; let hecho = 0;
   for (const it of etapa.items) {
-    const sv = it.cantidad * it.precioVenta;
-    venta += sv; costo += it.cantidad * it.costoProveedor;
-    hecho += sv * (it.avance / 100);
+    venta += it.precioVenta;
+    costo += it.costoProveedor;
+    hecho += it.precioVenta * (it.avance / 100);
   }
   const avance = venta ? Math.round((hecho / venta) * 100) : 0;
   return { venta, costo, avance, margen: venta - costo, mpct: venta ? Math.round(((venta - costo) / venta) * 100) : 0 };
@@ -86,7 +86,7 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
         </div>
         <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
           <div style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 700 }}>{money(totales.venta)}</div>
-          <div style={{ fontSize: 12.5, color: totales.mpct < 32 ? 'var(--bad)' : 'var(--good)' }}>margen {totales.mpct}%</div>
+          <div style={{ fontSize: 12.5, color: totales.mpct < 28 ? 'var(--bad)' : 'var(--good)' }}>margen {totales.mpct}%</div>
           {!isConsolidado && (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <span style={{ fontSize: 11, color: 'var(--muted)' }}>Fuente:</span>
@@ -125,7 +125,7 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
                 <span><strong>{etapa.code} · {etapa.nombre}</strong> <span style={{ color: 'var(--muted)', fontSize: 12.5 }}>({etapa.items.length} ítems)</span></span>
                 <span style={{ display: 'flex', gap: 16, alignItems: 'center', fontSize: 12.5 }}>
                   <span>{money(t.venta)}</span>
-                  <span style={{ color: t.mpct < 30 ? 'var(--bad)' : 'var(--good)', fontWeight: 600 }}>{t.mpct}%</span>
+                  <span style={{ color: t.mpct < 28 ? 'var(--bad)' : 'var(--good)', fontWeight: 600 }}>{t.mpct}%</span>
                   <span>{isOpen ? '▾' : '▸'}</span>
                 </span>
               </button>
@@ -133,17 +133,17 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
               {isOpen && (
                 <>
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', minWidth: 780 }}>
+                    <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', minWidth: 900 }}>
                       <thead>
                         <tr style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: 10.5, letterSpacing: '.06em' }}>
                           <th style={{ ...thStyle, textAlign: 'left' }}>Descripción</th>
                           <th style={thStyle}>Unidad</th>
                           <th style={thStyle}>Cant.</th>
-                          {!isConsolidado && <th style={thStyle}>Costo Unit.</th>}
-                          {!isConsolidado && <th style={thStyle}>Costo Prov.</th>}
-                          {!isConsolidado && <th style={thStyle}>Rentab. %</th>}
-                          <th style={thStyle}>Precio Venta</th>
-                          <th style={thStyle}>Subtotal</th>
+                          {!isConsolidado && <th style={thStyle}>C.Unit.Prov.</th>}
+                          {!isConsolidado && <th style={thStyle}>Subtotal Prov.</th>}
+                          {!isConsolidado && <th style={thStyle}>Rentab.%</th>}
+                          <th style={thStyle}>C.Unit.Venta</th>
+                          <th style={thStyle}>Subtotal Venta</th>
                           {!isConsolidado && <th style={thStyle}></th>}
                         </tr>
                       </thead>
@@ -186,8 +186,9 @@ function ItemRow({ item, isConsolidado, onUpdate, onRemove }: {
   onUpdate: (data: Record<string, unknown>) => void;
   onRemove: () => void;
 }) {
-  const costoTotal = item.cantidad * item.costoProveedor;
-  const subtotal = item.cantidad * item.precioVenta;
+  // subtotalProv y subtotalVenta vienen calculados del backend
+  const subtotalProv = item.costoProveedor;   // costoUnitario × cantidad
+  const subtotalVenta = item.precioVenta;      // costoUnitarioVenta × cantidad
 
   return (
     <tr style={{ borderTop: '1px solid var(--lineSoft)', opacity: item.cantidad > 0 ? 1 : 0.45 }}>
@@ -213,21 +214,29 @@ function ItemRow({ item, isConsolidado, onUpdate, onRemove }: {
           <EditableNumber value={item.cantidad} onCommit={(v) => onUpdate({ cantidad: v })} width={52} />
         )}
       </td>
+      {/* Columnas solo para SOCIO */}
       {!isConsolidado && (
         <td style={tdStyle}>
-          <EditableNumber value={(item as any).costoUnitario ?? 0} onCommit={(v) => onUpdate({ costoUnitario: v })} width={80} />
+          <EditableNumber value={item.costoUnitario} onCommit={(v) => onUpdate({ costoUnitario: v })} width={80} />
         </td>
       )}
       {!isConsolidado && (
-        <td style={{ ...tdStyle, color: 'var(--muted)' }}>{money(costoTotal)}</td>
+        <td style={{ ...tdStyle, color: 'var(--muted)' }}>{money(subtotalProv)}</td>
       )}
       {!isConsolidado && (
         <td style={tdStyle}>
-          <EditableNumber value={(item as any).rentabilidad ?? 33} onCommit={(v) => onUpdate({ rentabilidad: v })} width={52} suffix="%" />
+          <EditableNumber value={item.rentabilidad} onCommit={(v) => onUpdate({ rentabilidad: v })} width={48} suffix="%" />
         </td>
       )}
-      <td style={tdStyle}>{money(item.precioVenta)}</td>
-      <td style={{ ...tdStyle, fontWeight: 600 }}>{money(subtotal)}</td>
+      {/* C.Unit.Venta: auto pero editable */}
+      <td style={tdStyle}>
+        {isConsolidado
+          ? money(item.costoUnitarioVenta)
+          : <EditableNumber value={item.costoUnitarioVenta} onCommit={(v) => onUpdate({ costoUnitarioVenta: v })} width={80} />
+        }
+      </td>
+      {/* Subtotal Venta */}
+      <td style={{ ...tdStyle, fontWeight: 600 }}>{money(subtotalVenta)}</td>
       {!isConsolidado && (
         <td style={tdStyle}>
           <button onClick={onRemove} title="Eliminar ítem"
@@ -257,7 +266,6 @@ function EditableNumber({ value, onCommit, width = 64, suffix }: { value: number
   const [dirty, setDirty] = useState(false);
 
   const commit = () => {
-    // Soporta expresiones tipo "=148000*.33" o "148000*1.33"
     let raw = local.replace(/^=/, '');
     let n: number;
     try { n = Function('"use strict"; return (' + raw + ')')(); } catch { n = parseFloat(raw); }
