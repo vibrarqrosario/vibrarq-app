@@ -16,7 +16,7 @@ export function Login() {
     document.documentElement.dataset.theme = 'editorial';
   }, []);
 
-  if (user) return <Navigate to={user.role === 'CLIENTE' ? '/portal' : (location.state as any)?.from ?? '/'} replace />;
+  if (user) return <Navigate to={user.role === 'CLIENTE' ? '/portal' : (location.state as any)?.from ?? '/obras'} replace />;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,7 +24,7 @@ export function Login() {
     setSubmitting(true);
     try {
       const loggedUser = await login(email, password);
-      navigate(loggedUser.role === 'CLIENTE' ? '/portal' : '/');
+      navigate(loggedUser.role === 'CLIENTE' ? '/portal' : '/obras');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo iniciar sesión');
     } finally {
