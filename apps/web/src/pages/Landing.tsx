@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 const SLIDES = [
+  { src: '/services/hero.jpg', label: 'VIBRARQ', sub: 'De la idea a la obra' },
   { src: '/services/anteproyecto.jpg', label: 'Anteproyecto', sub: 'La idea toma forma' },
   { src: '/services/proyecto-ejecutivo.jpg', label: 'Proyecto Ejecutivo', sub: 'Del diseño a la obra' },
   { src: '/services/tramites.jpg', label: 'Trámites y Gestión', sub: 'Todo en regla, sin complicaciones' },
@@ -35,14 +36,10 @@ export function Landing() {
         borderBottom: '1px solid rgba(0,0,0,0.08)',
       }}>
         {/* Logo */}
-        <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: '#1a1a1a' }}>
-          <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-            <polygon points="18,2 34,14 34,34 2,34 2,14" stroke="#4a6741" strokeWidth="1.5" fill="none"/>
-            <line x1="8" y1="34" x2="18" y2="14" stroke="#1a1a1a" strokeWidth="1.8"/>
-            <line x1="22" y1="14" x2="22" y2="34" stroke="#1a1a1a" strokeWidth="1.8"/>
-            <line x1="14" y1="24" x2="22" y2="24" stroke="#1a1a1a" strokeWidth="1.8"/>
-          </svg>
-          <span style={{ fontFamily: 'var(--serif)', fontSize: 20, letterSpacing: '0.15em', fontWeight: 400 }}>VIBRARQ</span>
+        <a href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          <img src="/services/logo.jpg" alt="VIBRARQ" style={{ height: 52, width: 'auto' }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          <span style={{ fontFamily: 'var(--serif)', fontSize: 20, letterSpacing: '0.15em', fontWeight: 400, color: '#1a1a1a' }}>VIBRARQ</span>
         </a>
 
         {/* Desktop nav links */}
