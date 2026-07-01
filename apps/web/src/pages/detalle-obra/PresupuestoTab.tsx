@@ -45,6 +45,16 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
     onSuccess: () => qc.invalidateQueries({ queryKey: ['presupuesto', budgetSel] }),
   });
 
+  const addItem = useMutation({
+    mutationFn: (etapaId: string) => api.post(`/etapas/${etapaId}/items`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['presupuesto', budgetSel] }),
+  });
+
+  const addEtapa = useMutation({
+    mutationFn: () => api.post(`/presupuestos/${budgetSel}/etapas`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['presupuesto', budgetSel] }),
+  });
+
   const totales = useMemo(() => {
     let venta = 0;
     let costo = 0;
@@ -114,86 +124,146 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
                 </span>
               </button>
               {isOpen && (
-                <table style={{ width: '100%', fontSize: 12.5, borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: 10.5, letterSpacing: '.06em' }}>
-                      <th style={thStyle}>Código</th>
-                      <th style={{ ...thStyle, textAlign: 'left' }}>Descripción</th>
-                      <th style={thStyle}>Cant.</th>
-                      {!isConsolidado && <th style={thStyle}>Costo prov.</th>}
-                      <th style={thStyle}>Venta</th>
-                      <th style={thStyle}>Días</th>
-                      <th style={thStyle}>Avance %</th>
-                      <th style={thStyle}>Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {etapa.items.map((it) => (
-                      <tr key={it.id} style={{ borderTop: '1px solid var(--lineSoft)', opacity: it.cantidad > 0 ? 1 : 0.5 }}>
-                        <td style={tdStyle}>{it.codigoCifras}</td>
-                        <td style={{ ...tdStyle, textAlign: 'left' }}>{it.desc}</td>
-                        <td style={tdStyle}>
-                          {isConsolidado ? it.cantidad : (
-                            <EditableNumber value={it.cantidad} onCommit={(v) => updateItem.mutate({ itemId: it.id, field: 'cantidad', value: v })} />
-                          )}
-                        </td>
-                        {!isConsolidado && (
-                          <td style={tdStyle}>
-                            <EditableNumber value={it.costoProveedor} onCommit={(v) => updateItem.mutate({ itemId: it.id, field: 'costoProveedor', value: v })} />
-                          </td>
-                        )}
-                        <td style={tdStyle}>
-                          {isConsolidado ? money(it.precioVenta) : (
-                            <EditableNumber value={it.precioVenta} onCommit={(v) => updateItem.mutate({ itemId: it.id, field: 'precioVenta', value: v })} />
-                          )}
-                        </td>
-                        <td style={tdStyle}>
-                          {isConsolidado ? it.dias : (
-                            <EditableNumber value={it.dias} onCommit={(v) => updateItem.mutate({ itemId: it.id, field: 'dias', value: v })} />
-                          )}
-                        </td>
-                        <td style={tdStyle}>
-                          {isConsolidado ? `${it.avance}%` : (
-                            <EditableNumber value={it.avance} onCommit={(v) => updateItem.mutate({ itemId: it.id, field: 'avance', value: Math.max(0, Math.min(100, v)) })} />
-                          )}
-                        </td>
-                        <td style={tdStyle}>{money(it.cantidad * it.precioVenta)}</td>
+                <>
+                  <table style={{ width: '100%', fontSize: 12.5, borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ color: 'var(--muted)', textTransform: 'uppercase', fontSize: 10.5, letterSpacing: '.06em' }}>
+                        <th style={thStyle}>Código</th>
+                        <th style={{ ...thStyle, textAlign: 'left' }}>Descripción</th>
+                        <th style={thStyle}>Cant.</th>
+                        {!isConsolidado && <th style={thStyle}>Costo prov.</th>}
+                        <th style={thStyle}>Venta</th>
+                        <th style={thStyle}>Días</th>
+                        <th style={thStyle}>Avance %</th>
+                        <th style={thStyle}>Subtotal</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {etapa.items.map((it) => (
+                        <tr key={it.id} style={{ borderTop: '1px solid var(--lineSoft)', opacity: it.cantidad > 0 ? 1 : 0.5 }}>
+                          <td style={tdStyle}>{it.codigoCifras}</td>
+                          <td style={{ ...tdStyle, textAlign: 'left' }}>{it.desc}</td>
+                          <td style={tdStyle}>
+                            {isConsolidado ? it.cantidad : (
+                              <EditableNumber value={it.cantidad} onCommit={(v) => updateItem.mutate({ itemId: it.id, field: 'cantidad', value: v })} />
+                            )}
+                          </td>
+                          {!isConsolidado && (
+                            <td style={tdStyle}>
+                              <EditableNumber value={it.costoProveedor} onCommit={(v) => updateItem.mutate({ itemId: it.id, field: 'costoProveedor', value: v })} />
+                            </td>
+                          )}
+                          <td style={tdStyle}>
+                            {isConsolidado ? money(it.precioVenta) : (
+                              <EditableNumber value={it.precioVenta} onCommit={(v) => updateItem.mutate({ itemId: it.id, field: 'precioVenta', value: v })} />
+                            )}
+                          </td>
+                          <td style={tdStyle}>
+                            {isConsolidado ? it.dias : (
+                              <EditableNumber value={it.dias} onCommit={(v) => updateItem.mutate({ itemId: it.id, field: 'dias', value: v })} />
+                            )}
+                          </td>
+                          <td style={tdStyle}>
+                            {isConsolidado ? `${it.avance}%` : (
+                              <EditableNumber value={it.avance} onCommit={(v) => updateItem.mutate({ itemId: it.id, field: 'avance', value: Math.max(0, Math.min(100, v)) })} />
+                            )}
+                          </td>
+                          <td style={tdStyle}>{money(it.cantidad * it.precioVenta)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {!isConsolidado && (
+                    <div style={{ padding: '8px 16px', borderTop: '1px solid var(--lineSoft)' }}>
+                      <button
+                        onClick={() => addItem.mutate(etapa.id)}
+                        disabled={addItem.isPending}
+                        style={addBtnStyle}
+                      >
+                        + Agregar ítem
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           );
         })}
       </div>
+
+      {!isConsolidado && (
+        <div style={{ marginTop: 12 }}>
+          <button
+            onClick={() => addEtapa.mutate()}
+            disabled={addEtapa.isPending}
+            style={addBtnStyle}
+          >
+            + Agregar rubro
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 function EditableNumber({ value, onCommit }: { value: number; onCommit: (v: number) => void }) {
   const [local, setLocal] = useState(String(value));
+  const [dirty, setDirty] = useState(false);
+
+  const commit = () => {
+    const n = parseFloat(local);
+    if (!Number.isNaN(n) && n !== value) onCommit(n);
+    setDirty(false);
+  };
+
   return (
-    <input
-      value={local}
-      onChange={(e) => setLocal(e.target.value)}
-      onBlur={() => {
-        const n = parseFloat(local);
-        if (!Number.isNaN(n) && n !== value) onCommit(n);
-      }}
-      style={{
-        width: 64,
-        textAlign: 'right',
-        padding: '4px 6px',
-        borderRadius: 5,
-        border: '1px solid var(--line)',
-        background: 'var(--paper)',
-        color: 'var(--ink)',
-        fontSize: 12.5,
-      }}
-    />
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <input
+        value={local}
+        onChange={(e) => { setLocal(e.target.value); setDirty(true); }}
+        onKeyDown={(e) => { if (e.key === 'Enter') commit(); }}
+        onBlur={() => { if (!dirty) return; commit(); }}
+        style={{
+          width: 64,
+          textAlign: 'right',
+          padding: '4px 6px',
+          borderRadius: 5,
+          border: '1px solid var(--line)',
+          background: 'var(--paper)',
+          color: 'var(--ink)',
+          fontSize: 12.5,
+        }}
+      />
+      {dirty && (
+        <button
+          onMouseDown={(e) => { e.preventDefault(); commit(); }}
+          style={{
+            padding: '3px 7px',
+            fontSize: 11,
+            borderRadius: 5,
+            border: '1px solid var(--accent)',
+            background: 'var(--accent)',
+            color: '#fff',
+            cursor: 'pointer',
+            lineHeight: 1,
+          }}
+        >
+          OK
+        </button>
+      )}
+    </span>
   );
 }
+
+const addBtnStyle: React.CSSProperties = {
+  fontSize: 12.5,
+  color: 'var(--accent)',
+  background: 'transparent',
+  border: '1px dashed var(--accent)',
+  borderRadius: 6,
+  padding: '5px 12px',
+  cursor: 'pointer',
+};
 
 const thStyle: React.CSSProperties = { padding: '8px 10px', textAlign: 'right' };
 const tdStyle: React.CSSProperties = { padding: '6px 10px', textAlign: 'right' };

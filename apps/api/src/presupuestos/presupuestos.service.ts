@@ -69,6 +69,17 @@ export class PresupuestosService {
     return { ok: true };
   }
 
+  async addEtapa(presupuestoId: string) {
+    const presupuesto = await this.prisma.presupuesto.findUnique({ where: { id: presupuestoId }, include: { etapas: true } });
+    if (!presupuesto) throw new NotFoundException('Presupuesto no encontrado');
+    const num = presupuesto.etapas.length + 1;
+    const code = String(num).padStart(2, '0');
+    return this.prisma.etapa.create({
+      data: { presupuestoId, code, nombre: 'Nuevo rubro', orden: num, items: { create: [] } },
+      include: { items: true },
+    });
+  }
+
   // Equivalente a addAdicional() en Detalle de Obra.dc.html: agrega un presupuesto
   // adicional a la MISMA obra (nunca crea una obra nueva).
   async createAdicional(obraId: string, dto: CreateAdicionalDto) {

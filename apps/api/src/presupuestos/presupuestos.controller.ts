@@ -39,6 +39,12 @@ export class PresupuestosController {
   }
 
   @Roles('SOCIO')
+  @Post('presupuestos/:presupuestoId/etapas')
+  addEtapa(@Param('presupuestoId') presupuestoId: string) {
+    return this.presupuestosService.addEtapa(presupuestoId);
+  }
+
+  @Roles('SOCIO')
   @Post('obras/:obraId/presupuestos')
   createAdicional(@Param('obraId') obraId: string, @Body() dto: CreateAdicionalDto) {
     return this.presupuestosService.createAdicional(obraId, dto);
