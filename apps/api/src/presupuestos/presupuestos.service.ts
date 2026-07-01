@@ -95,6 +95,16 @@ export class PresupuestosService {
 
     const countAdicionales = await this.prisma.presupuesto.count({ where: { obraId, tipo: 'ADICIONAL' } });
     const numero = `A-${String(countAdicionales + 1).padStart(3, '0')}`;
+
+    // El adicional arranca con el catálogo CIFRAS completo (cantidad 0), igual que el original.
+    const catalogo = await this.prisma.catalogoCifrasItem.findMany({ orderBy: { codigo: 'asc' } });
+    const porRubro = new Map<string, typeof catalogo>();
+    for (const it of catalogo) {
+      if (!porRubro.has(it.rubro)) porRubro.set(it.rubro, []);
+      porRubro.get(it.rubro)!.push(it);
+    }
+    const mk = (c: number) => (c ? Math.round((c * 1.5) / 1000) * 1000 : 0);
+
     return this.prisma.presupuesto.create({
       data: {
         obraId,
@@ -104,7 +114,25 @@ export class PresupuestosService {
         detalle: dto.detalle,
         estado: 'ENVIADO',
         fecha: new Date(),
-        etapas: { create: [{ code: '00', nombre: 'Honorarios Profesionales', items: { create: [] } }] },
+        etapas: {
+          create: [...porRubro.entries()].map(([rubro, items]) => ({
+            code: rubro,
+            nombre: items[0].nombreRubro,
+            items: {
+              create: items.map((it) => ({
+                codigoCifras: it.codigo,
+                desc: it.desc,
+                unidad: it.unidad,
+                cantidad: 0,
+                costoProveedor: it.costoRef,
+                precioVenta: mk(it.costoRef),
+                dias: 0,
+                avance: 0,
+                ratioMaterial: it.ratioMaterial,
+              })),
+            },
+          })),
+        },
       },
       include: PRESUPUESTO_INCLUDE,
     });
