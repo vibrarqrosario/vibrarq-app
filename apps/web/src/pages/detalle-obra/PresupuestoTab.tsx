@@ -144,6 +144,7 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
                           {!isConsolidado && <th style={thStyle}>Rentab.%</th>}
                           <th style={thStyle}>C.Unit.Venta</th>
                           <th style={thStyle}>Subtotal Venta</th>
+                          <th style={thStyle}>Días</th>
                           {!isConsolidado && <th style={thStyle}></th>}
                         </tr>
                       </thead>
@@ -237,6 +238,12 @@ function ItemRow({ item, isConsolidado, onUpdate, onRemove }: {
       </td>
       {/* Subtotal Venta */}
       <td style={{ ...tdStyle, fontWeight: 600 }}>{money(subtotalVenta)}</td>
+      {/* Días hábiles */}
+      <td style={tdStyle}>
+        {isConsolidado ? item.dias : (
+          <EditableNumber value={item.dias} onCommit={(v) => onUpdate({ dias: Math.round(v) })} width={44} />
+        )}
+      </td>
       {!isConsolidado && (
         <td style={tdStyle}>
           <button onClick={onRemove} title="Eliminar ítem"
