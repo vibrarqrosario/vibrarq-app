@@ -42,7 +42,25 @@ export class PresupuestosService {
   async updateItem(itemId: string, dto: UpdateItemDto) {
     const item = await this.prisma.item.findUnique({ where: { id: itemId } });
     if (!item) throw new NotFoundException('Ítem no encontrado');
-    return this.prisma.item.update({ where: { id: itemId }, data: dto });
+
+    const cantidad = dto.cantidad ?? item.cantidad;
+    const costoUnitario = dto.costoUnitario ?? item.costoUnitario;
+    const rentabilidad = dto.rentabilidad ?? item.rentabilidad;
+
+    // Si cambia costoUnitario o cantidad, recalcula costoProveedor
+    const costoProveedor = (dto.costoUnitario !== undefined || dto.cantidad !== undefined)
+      ? cantidad * costoUnitario
+      : (dto.costoProveedor ?? item.costoProveedor);
+
+    // Si cambia costoProveedor o rentabilidad, recalcula precioVenta
+    const precioVenta = (dto.costoUnitario !== undefined || dto.cantidad !== undefined || dto.rentabilidad !== undefined)
+      ? costoProveedor * (1 + rentabilidad / 100)
+      : (dto.precioVenta ?? item.precioVenta);
+
+    return this.prisma.item.update({
+      where: { id: itemId },
+      data: { ...dto, costoProveedor, precioVenta },
+    });
   }
 
   async addItem(etapaId: string) {
@@ -67,6 +85,18 @@ export class PresupuestosService {
   async removeItem(itemId: string) {
     await this.prisma.item.delete({ where: { id: itemId } });
     return { ok: true };
+  }
+
+  async confirmarPresupuesto(presupuestoId: string) {
+    // Elimina todos los ítems con cantidad 0 y cambia estado a APROBADO
+    await this.prisma.item.deleteMany({
+      where: { etapa: { presupuestoId }, cantidad: 0 },
+    });
+    return this.prisma.presupuesto.update({
+      where: { id: presupuestoId },
+      data: { estado: 'APROBADO' },
+      include: PRESUPUESTO_INCLUDE,
+    });
   }
 
   async updateCostoVibrarq(codigo: string, costo: number) {

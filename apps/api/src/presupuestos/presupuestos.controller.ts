@@ -51,6 +51,12 @@ export class PresupuestosController {
   }
 
   @Roles('SOCIO')
+  @Post('presupuestos/:presupuestoId/confirmar')
+  confirmar(@Param('presupuestoId') presupuestoId: string) {
+    return this.presupuestosService.confirmarPresupuesto(presupuestoId);
+  }
+
+  @Roles('SOCIO')
   @Patch('catalogo/:codigo/costo-vibrarq')
   updateCostoVibrarq(@Param('codigo') codigo: string, @Body('costo') costo: number) {
     return this.presupuestosService.updateCostoVibrarq(codigo, costo);

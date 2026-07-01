@@ -4,7 +4,9 @@ export type Item = {
   desc: string;
   unidad: string;
   cantidad: number;
+  costoUnitario: number;
   costoProveedor: number;
+  rentabilidad: number;
   precioVenta: number;
   dias: number;
   avance: number;

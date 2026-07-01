@@ -1,13 +1,29 @@
-import { IsNumber, IsOptional, Max, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class UpdateItemDto {
+  @IsOptional()
+  @IsString()
+  desc?: string;
+
+  @IsOptional()
+  @IsString()
+  unidad?: string;
+
   @IsOptional()
   @IsNumber()
   cantidad?: number;
 
   @IsOptional()
   @IsNumber()
+  costoUnitario?: number;
+
+  @IsOptional()
+  @IsNumber()
   costoProveedor?: number;
+
+  @IsOptional()
+  @IsNumber()
+  rentabilidad?: number;
 
   @IsOptional()
   @IsNumber()
