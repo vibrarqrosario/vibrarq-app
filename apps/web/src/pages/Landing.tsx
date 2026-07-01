@@ -57,47 +57,88 @@ export function Landing() {
       </nav>
 
       {/* HERO SLIDESHOW */}
-      <div style={{ position: 'relative', height: '100vh', overflow: 'hidden' }}>
-        {SLIDES.map((s, i) => (
-          <div key={i} style={{
-            position: 'absolute', inset: 0,
-            opacity: i === slide ? 1 : 0,
-            transition: 'opacity 1s ease',
-          }}>
-            <img src={s.src} alt={s.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <div style={{
+      <div style={{ height: '100vh', display: 'flex', background: '#1a1a18', overflow: 'hidden' }}>
+
+        {/* Panel izquierdo */}
+        <div style={{
+          width: 220, flex: 'none', display: 'flex', flexDirection: 'column',
+          justifyContent: 'space-between', padding: '100px 32px 40px',
+          borderRight: '1px solid rgba(255,255,255,0.08)',
+        }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.25em', color: '#4a6741', textTransform: 'uppercase', marginBottom: 24 }}>
+              Rosario · Argentina
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: '.1em', lineHeight: 2.2 }}>
+              {'VIVIENDAS\nLOCALES\nREFORMAS\nAMPLIACIONES'.split('\n').map(t => (
+                <div key={t}>{t}</div>
+              ))}
+            </div>
+          </div>
+          <div>
+            {/* Líneas decorativas */}
+            {[0,1,2,3,4].map(i => (
+              <div key={i} style={{ height: 1, background: 'rgba(255,255,255,0.1)', marginBottom: 10, width: `${100 - i * 15}%` }} />
+            ))}
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 16, letterSpacing: '.08em' }}>
+              @vibrarq.estudio
+            </div>
+          </div>
+        </div>
+
+        {/* Imagen central */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          {SLIDES.map((s, i) => (
+            <div key={i} style={{
               position: 'absolute', inset: 0,
-              background: 'linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 100%)',
-            }} />
-          </div>
-        ))}
-
-        {/* Slide text */}
-        <div style={{ position: 'absolute', bottom: 80, left: 60, color: '#fff' }}>
-          <div style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.8, marginBottom: 8 }}>
-            {String(slide + 1).padStart(2, '0')} / {String(SLIDES.length).padStart(2, '0')}
-          </div>
-          <h2 style={{ fontFamily: 'var(--serif)', fontSize: 48, fontWeight: 400, margin: '0 0 8px', lineHeight: 1.1 }}>
-            {SLIDES[slide].label}
-          </h2>
-          <p style={{ fontSize: 18, opacity: 0.85, margin: 0 }}>{SLIDES[slide].sub}</p>
-        </div>
-
-        {/* Dot indicators */}
-        <div style={{ position: 'absolute', bottom: 32, left: 60, display: 'flex', gap: 8 }}>
-          {SLIDES.map((_, i) => (
-            <button key={i} onClick={() => setSlide(i)} style={{
-              width: i === slide ? 24 : 8, height: 8, borderRadius: 4,
-              background: '#fff', opacity: i === slide ? 1 : 0.4,
-              border: 'none', cursor: 'pointer', transition: 'all .3s',
-              padding: 0,
-            }} />
+              opacity: i === slide ? 1 : 0,
+              transition: 'opacity 1s ease',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <img src={s.src} alt={s.label} style={{
+                maxHeight: '90%', maxWidth: '90%',
+                objectFit: 'contain',
+                borderRadius: 4,
+                boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+              }} />
+            </div>
           ))}
+
+          {/* Dot indicators */}
+          <div style={{ position: 'absolute', bottom: 32, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 8 }}>
+            {SLIDES.map((_, i) => (
+              <button key={i} onClick={() => setSlide(i)} style={{
+                width: i === slide ? 24 : 8, height: 8, borderRadius: 4,
+                background: '#fff', opacity: i === slide ? 0.9 : 0.25,
+                border: 'none', cursor: 'pointer', transition: 'all .3s', padding: 0,
+              }} />
+            ))}
+          </div>
         </div>
 
-        {/* Scroll hint */}
-        <div style={{ position: 'absolute', bottom: 36, right: 60, color: '#fff', opacity: 0.6, fontSize: 12, letterSpacing: '.08em' }}>
-          ARQUITECTURA QUE CONECTA CON VOS
+        {/* Panel derecho */}
+        <div style={{
+          width: 220, flex: 'none', display: 'flex', flexDirection: 'column',
+          justifyContent: 'space-between', padding: '100px 32px 40px',
+          borderLeft: '1px solid rgba(255,255,255,0.08)',
+        }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.25em', color: '#4a6741', textTransform: 'uppercase', marginBottom: 24 }}>
+              {String(slide + 1).padStart(2, '0')} / {String(SLIDES.length).padStart(2, '0')}
+            </div>
+            <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 400, color: '#fff', margin: '0 0 12px', lineHeight: 1.3 }}>
+              {SLIDES[slide].label}
+            </h2>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: 0, lineHeight: 1.6 }}>
+              {SLIDES[slide].sub}
+            </p>
+          </div>
+          <div>
+            <div style={{ width: 1, height: 80, background: 'rgba(255,255,255,0.15)', marginBottom: 20 }} />
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', letterSpacing: '.12em', textTransform: 'uppercase' }}>
+              Arquitectura<br/>que conecta<br/>con vos
+            </div>
+          </div>
         </div>
       </div>
 
