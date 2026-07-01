@@ -154,15 +154,16 @@ model Item {
 }
 
 model CatalogoCifrasItem {
-  id            String      @id @default(cuid())
-  codigo        String      @unique
-  rubro         String
-  nombreRubro   String
-  desc          String
-  unidad        String
-  costoRef      Float
-  ratioMaterial Float
-  fuente        FuenteCosto @default(CIFRAS)
+  id             String      @id @default(cuid())
+  codigo         String      @unique
+  rubro          String
+  nombreRubro    String
+  desc           String
+  unidad         String
+  costoRef       Float
+  costoVibrarq   Float?
+  ratioMaterial  Float
+  fuente         FuenteCosto @default(CIFRAS)
 }
 
 // ── Certificados ──────────────────────────────────────

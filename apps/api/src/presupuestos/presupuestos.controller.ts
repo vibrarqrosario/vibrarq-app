@@ -45,6 +45,18 @@ export class PresupuestosController {
   }
 
   @Roles('SOCIO')
+  @Post('presupuestos/:presupuestoId/aplicar-fuente')
+  aplicarFuente(@Param('presupuestoId') presupuestoId: string, @Body('fuente') fuente: 'CIFRAS' | 'VIBRARQ') {
+    return this.presupuestosService.aplicarFuente(presupuestoId, fuente);
+  }
+
+  @Roles('SOCIO')
+  @Patch('catalogo/:codigo/costo-vibrarq')
+  updateCostoVibrarq(@Param('codigo') codigo: string, @Body('costo') costo: number) {
+    return this.presupuestosService.updateCostoVibrarq(codigo, costo);
+  }
+
+  @Roles('SOCIO')
   @Post('obras/:obraId/presupuestos')
   createAdicional(@Param('obraId') obraId: string, @Body() dto: CreateAdicionalDto) {
     return this.presupuestosService.createAdicional(obraId, dto);

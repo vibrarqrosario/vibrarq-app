@@ -55,6 +55,11 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
     onSuccess: () => qc.invalidateQueries({ queryKey: ['presupuesto', budgetSel] }),
   });
 
+  const aplicarFuente = useMutation({
+    mutationFn: (fuente: 'CIFRAS' | 'VIBRARQ') => api.post(`/presupuestos/${budgetSel}/aplicar-fuente`, { fuente }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['presupuesto', budgetSel] }),
+  });
+
   const totales = useMemo(() => {
     let venta = 0;
     let costo = 0;
@@ -85,9 +90,33 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
           <div style={{ fontWeight: 700 }}>{isConsolidado ? 'Obra completa (consolidado)' : (presupuestoQuery.data?.nombre ?? '—')}</div>
           <div style={{ fontSize: 12.5, color: 'var(--ink2)' }}>{isConsolidado ? 'Solo lectura · original + adicionales aprobados' : presupuestoQuery.data?.detalle}</div>
         </div>
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
           <div style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 700 }}>{money(totales.venta)}</div>
           <div style={{ fontSize: 12.5, color: totales.mpct < 32 ? 'var(--bad)' : 'var(--good)' }}>margen {totales.mpct}%</div>
+          {!isConsolidado && (
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--muted)', marginRight: 4 }}>Fuente de costos:</span>
+              {(['CIFRAS', 'VIBRARQ'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => aplicarFuente.mutate(f)}
+                  disabled={aplicarFuente.isPending}
+                  style={{
+                    fontSize: 11,
+                    padding: '3px 10px',
+                    borderRadius: 5,
+                    border: '1px solid var(--accent)',
+                    background: 'transparent',
+                    color: 'var(--accent)',
+                    cursor: 'pointer',
+                    opacity: aplicarFuente.isPending ? 0.5 : 1,
+                  }}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

@@ -69,6 +69,40 @@ export class PresupuestosService {
     return { ok: true };
   }
 
+  async updateCostoVibrarq(codigo: string, costo: number) {
+    return this.prisma.catalogoCifrasItem.update({ where: { codigo }, data: { costoVibrarq: costo } });
+  }
+
+  async aplicarFuente(presupuestoId: string, fuente: 'CIFRAS' | 'VIBRARQ') {
+    const presupuesto = await this.prisma.presupuesto.findUnique({
+      where: { id: presupuestoId },
+      include: { etapas: { include: { items: true } } },
+    });
+    if (!presupuesto) throw new NotFoundException('Presupuesto no encontrado');
+
+    const codigos = presupuesto.etapas.flatMap((e) => e.items.map((i) => i.codigoCifras));
+    const catalogo = await this.prisma.catalogoCifrasItem.findMany({ where: { codigo: { in: codigos } } });
+    const mapaRef = new Map(catalogo.map((c) => [c.codigo, c]));
+    const mk = (c: number) => (c ? Math.round((c * 1.5) / 1000) * 1000 : 0);
+
+    const updates: Promise<unknown>[] = [];
+    for (const etapa of presupuesto.etapas) {
+      for (const item of etapa.items) {
+        const ref = mapaRef.get(item.codigoCifras);
+        if (!ref) continue;
+        const costoBase = fuente === 'VIBRARQ' && ref.costoVibrarq != null ? ref.costoVibrarq : ref.costoRef;
+        updates.push(
+          this.prisma.item.update({
+            where: { id: item.id },
+            data: { costoProveedor: costoBase, precioVenta: mk(costoBase) },
+          }),
+        );
+      }
+    }
+    await Promise.all(updates);
+    return this.findOne(presupuestoId);
+  }
+
   async addEtapa(presupuestoId: string) {
     const presupuesto = await this.prisma.presupuesto.findUnique({ where: { id: presupuestoId }, include: { etapas: true } });
     if (!presupuesto) throw new NotFoundException('Presupuesto no encontrado');
