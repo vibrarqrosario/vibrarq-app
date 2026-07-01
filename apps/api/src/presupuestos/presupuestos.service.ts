@@ -109,7 +109,7 @@ export class PresupuestosService {
     const num = presupuesto.etapas.length + 1;
     const code = String(num).padStart(2, '0');
     return this.prisma.etapa.create({
-      data: { presupuestoId, code, nombre: 'Nuevo rubro', orden: num, items: { create: [] } },
+      data: { presupuestoId, code, nombre: 'Nuevo rubro', items: { create: [] } },
       include: { items: true },
     });
   }
