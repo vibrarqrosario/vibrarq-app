@@ -63,19 +63,56 @@ export class PresupuestosService {
     // col 10: subtotal valor ejecución
     const precioVenta = costoUnitarioVenta * cantidad;
 
-    return this.prisma.item.update({
+    const updated = await this.prisma.item.update({
       where: { id: itemId },
       data: { ...dto, costoMaterial, subTotalMaterial, costoProveedor, costoUnitarioVenta, precioVenta },
     });
+
+    // Sincronizar con el catálogo: el ítem editado queda disponible con sus
+    // últimos datos para presupuestos futuros (de este cliente o de otros).
+    if (dto.desc !== undefined || dto.unidad !== undefined || dto.costoMaterial !== undefined || dto.costoUnitario !== undefined) {
+      const costoTotal = costoMaterial + costoUnitario;
+      await this.prisma.catalogoCifrasItem.updateMany({
+        where: { codigo: updated.codigoCifras },
+        data: {
+          ...(dto.desc !== undefined ? { desc: dto.desc } : {}),
+          ...(dto.unidad !== undefined ? { unidad: dto.unidad } : {}),
+          ...(dto.costoMaterial !== undefined || dto.costoUnitario !== undefined
+            ? { costoVibrarq: costoUnitario, costoRef: costoTotal, ratioMaterial: costoTotal > 0 ? costoMaterial / costoTotal : 0.5 }
+            : {}),
+        },
+      });
+    }
+
+    return updated;
   }
 
   async addItem(etapaId: string) {
     const etapa = await this.prisma.etapa.findUnique({ where: { id: etapaId } });
     if (!etapa) throw new NotFoundException('Etapa no encontrada');
+    // Código único para que el ítem pueda persistirse en el catálogo
+    // y quedar disponible en presupuestos futuros.
+    const existentes = await this.prisma.catalogoCifrasItem.count({
+      where: { codigo: { startsWith: `${etapa.code}.P` } },
+    });
+    const codigo = `${etapa.code}.P${String(existentes + 1).padStart(2, '0')}`;
+    await this.prisma.catalogoCifrasItem.create({
+      data: {
+        codigo,
+        rubro: etapa.code,
+        nombreRubro: etapa.nombre,
+        desc: 'Nuevo ítem',
+        unidad: 'u',
+        costoRef: 0,
+        costoVibrarq: 0,
+        ratioMaterial: 0.5,
+        fuente: 'PROPIA',
+      },
+    });
     return this.prisma.item.create({
       data: {
         etapaId,
-        codigoCifras: `${etapa.code}.—`,
+        codigoCifras: codigo,
         desc: 'Nuevo ítem',
         unidad: 'u',
         cantidad: 1,
