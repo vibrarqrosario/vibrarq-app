@@ -7,8 +7,10 @@ export type ItemLike = {
   desc: string;
   unidad: string;
   cantidad: number;
-  costoProveedor: number;
-  precioVenta: number;
+  costoMaterial: number;
+  subTotalMaterial: number;
+  costoProveedor: number;   // subTotalEjecución proveedor
+  precioVenta: number;      // subTotalValorEjecución (cliente)
   dias: number;
   avance: number;
   ratioMaterial: number;
@@ -18,14 +20,16 @@ export type EtapaLike = { id: string; code: string; nombre: string; items: ItemL
 export type PresupuestoLike = { id: string; estado: string; etapas: EtapaLike[] };
 
 export function montoVenta(presupuesto: PresupuestoLike): number {
+  // total cliente = material + valor ejecución venta (ambos ya son subtotales)
   let v = 0;
-  for (const et of presupuesto.etapas) for (const it of et.items) v += it.cantidad * it.precioVenta;
+  for (const et of presupuesto.etapas) for (const it of et.items) v += it.subTotalMaterial + it.precioVenta;
   return v;
 }
 
 export function montoCosto(presupuesto: PresupuestoLike): number {
+  // total proveedor = material + ejecución proveedor
   let v = 0;
-  for (const et of presupuesto.etapas) for (const it of et.items) v += it.cantidad * it.costoProveedor;
+  for (const et of presupuesto.etapas) for (const it of et.items) v += it.subTotalMaterial + it.costoProveedor;
   return v;
 }
 
@@ -34,7 +38,7 @@ export function avancePct(presupuesto: PresupuestoLike): number {
   let hecho = 0;
   for (const et of presupuesto.etapas)
     for (const it of et.items) {
-      const sv = it.cantidad * it.precioVenta;
+      const sv = it.subTotalMaterial + it.precioVenta;
       venta += sv;
       hecho += sv * (it.avance / 100);
     }
@@ -61,6 +65,11 @@ export function consolidarEtapas(presupuestosAprobados: PresupuestoLike[]): Etap
 export function sanitizeForCliente(etapas: EtapaLike[]) {
   return etapas.map((et) => ({
     ...et,
-    items: et.items.map(({ costoProveedor, ratioMaterial, ...rest }) => rest),
+    items: et.items.map(({ costoProveedor, ratioMaterial, ...rest }) => ({
+      ...rest,
+      // también omitir campos internos de costos
+      costoMaterial: undefined,
+      subTotalMaterial: undefined,
+    })),
   }));
 }

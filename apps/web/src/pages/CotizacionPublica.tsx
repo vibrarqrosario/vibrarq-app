@@ -104,13 +104,30 @@ export function CotizacionPublica() {
             {step === 3 && (
               <StepCard title="Superficie y plantas">
                 <label style={lblStyle}>Superficie aproximada (m²)</label>
-                <input
-                  type="number"
-                  value={form.m2}
-                  min={10}
-                  onChange={(e) => setForm((f) => ({ ...f, m2: Math.max(10, parseInt(e.target.value) || 10) }))}
-                  style={inputStyle}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, m2: Math.max(10, f.m2 - 5) }))}
+                    style={spinBtnStyle}
+                  >−</button>
+                  <input
+                    type="number"
+                    value={form.m2 === 0 ? '' : form.m2}
+                    min={10}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10);
+                      setForm((f) => ({ ...f, m2: isNaN(v) ? 0 : v }));
+                    }}
+                    onBlur={() => setForm((f) => ({ ...f, m2: Math.max(10, f.m2 || 10) }))}
+                    style={{ ...inputStyle, width: 100, textAlign: 'center' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, m2: f.m2 + 5 }))}
+                    style={spinBtnStyle}
+                  >+</button>
+                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>m²</span>
+                </div>
                 <label style={{ ...lblStyle, marginTop: 14 }}>Plantas</label>
                 <div style={{ display: 'flex', gap: 10 }}>
                   {[1, 2, 3].map((p) => (
@@ -274,6 +291,7 @@ function Option({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
+const spinBtnStyle: React.CSSProperties = { width: 36, height: 36, borderRadius: 8, border: '2px solid var(--ink)', background: 'var(--surf)', color: 'var(--ink)', fontSize: 18, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 };
 const primaryBtn: React.CSSProperties = { background: 'var(--green)', color: '#fff', borderRadius: 9, padding: '13px 22px', fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer' };
 const secondaryBtn: React.CSSProperties = { border: '1px solid var(--green)', borderRadius: 9, padding: '13px 22px', fontSize: 14, fontWeight: 600, color: 'var(--green)', background: 'var(--surf)', cursor: 'pointer' };
 const backLink: React.CSSProperties = { fontSize: 12.5, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 16, padding: 0 };

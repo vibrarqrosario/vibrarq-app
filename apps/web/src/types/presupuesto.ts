@@ -4,11 +4,18 @@ export type Item = {
   desc: string;
   unidad: string;
   cantidad: number;
-  costoUnitario: number;
-  costoProveedor: number;
+  // Material (cols 4-5)
+  costoMaterial: number;
+  subTotalMaterial: number;
+  // Ejecución proveedor (cols 6-7)
+  costoUnitario: number;       // C.Ejecución (un)
+  costoProveedor: number;      // Subtotal Ejecución
+  // Rentabilidad (col 8)
   rentabilidad: number;
-  costoUnitarioVenta: number;
-  precioVenta: number;
+  // Venta (cols 9-10)
+  costoUnitarioVenta: number;  // Valor Ejecución (un)
+  precioVenta: number;         // Subtotal Valor Ejecución
+  // Planificación (col 12)
   dias: number;
   avance: number;
   ratioMaterial: number;

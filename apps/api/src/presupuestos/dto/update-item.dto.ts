@@ -15,6 +15,10 @@ export class UpdateItemDto {
 
   @IsOptional()
   @IsNumber()
+  costoMaterial?: number;
+
+  @IsOptional()
+  @IsNumber()
   costoUnitario?: number;
 
   @IsOptional()

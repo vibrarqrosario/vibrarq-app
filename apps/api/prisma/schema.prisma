@@ -137,23 +137,30 @@ model Etapa {
 }
 
 model Item {
-  id               String            @id @default(cuid())
-  etapaId          String
-  etapa            Etapa             @relation(fields: [etapaId], references: [id])
-  codigoCifras     String
-  desc             String
-  unidad           String
-  cantidad           Float             @default(0)
-  costoUnitario      Float             @default(0)
-  costoProveedor     Float
-  rentabilidad       Float             @default(30)
-  costoUnitarioVenta Float             @default(0)
-  precioVenta        Float
-  dias             Int               @default(0)
-  avance           Int               @default(0)
-  ratioMaterial    Float             @default(0)
-  ordenCompraItems OrdenCompraItem[]
-  certificadoItems CertificadoItem[]
+  id                   String            @id @default(cuid())
+  etapaId              String
+  etapa                Etapa             @relation(fields: [etapaId], references: [id])
+  codigoCifras         String
+  desc                 String
+  unidad               String
+  cantidad             Float             @default(0)
+  // Material (columnas 4-5)
+  costoMaterial        Float             @default(0)   // C.Material (un) — de CIFRAS
+  subTotalMaterial     Float             @default(0)   // costoMaterial × cantidad
+  // Ejecución proveedor (columnas 6-7) — CIFRAS o Vibrarq
+  costoUnitario        Float             @default(0)   // C.Ejecución (un)
+  costoProveedor       Float             @default(0)   // costoUnitario × cantidad
+  // Rentabilidad (columna 8)
+  rentabilidad         Float             @default(30)
+  // Venta (columnas 9-10)
+  costoUnitarioVenta   Float             @default(0)   // Valor Ejecución (un) = costoUnitario × (1+rent/100)
+  precioVenta          Float             @default(0)   // costoUnitarioVenta × cantidad
+  // Planificación (columna 12)
+  dias                 Int               @default(0)
+  avance               Int               @default(0)
+  ratioMaterial        Float             @default(0)
+  ordenCompraItems     OrdenCompraItem[]
+  certificadoItems     CertificadoItem[]
 }
 
 model CatalogoCifrasItem {

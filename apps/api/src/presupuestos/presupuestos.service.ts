@@ -44,25 +44,28 @@ export class PresupuestosService {
     if (!item) throw new NotFoundException('Ítem no encontrado');
 
     const cantidad = dto.cantidad ?? item.cantidad;
+    const costoMaterial = dto.costoMaterial ?? item.costoMaterial;
     const costoUnitario = dto.costoUnitario ?? item.costoUnitario;
     const rentabilidad = dto.rentabilidad ?? item.rentabilidad;
 
-    // subtotal proveedor = costoUnitario × cantidad
+    // col 5: subtotal material
+    const subTotalMaterial = costoMaterial * cantidad;
+    // col 7: subtotal ejecución proveedor
     const costoProveedor = costoUnitario * cantidad;
 
-    // costo unitario venta: si se edita directamente, respetar; sino recalcular con rentabilidad
+    // col 9: valor ejecución (un) — si se edita directamente se respeta; sino recalcula con rentabilidad
     const costoUnitarioVenta = dto.costoUnitarioVenta !== undefined
       ? dto.costoUnitarioVenta
       : (dto.costoUnitario !== undefined || dto.rentabilidad !== undefined)
         ? costoUnitario * (1 + rentabilidad / 100)
-        : ((item as any).costoUnitarioVenta ?? costoUnitario * (1 + rentabilidad / 100));
+        : (item.costoUnitarioVenta ?? costoUnitario * (1 + rentabilidad / 100));
 
-    // subtotal venta = costoUnitarioVenta × cantidad
+    // col 10: subtotal valor ejecución
     const precioVenta = costoUnitarioVenta * cantidad;
 
     return this.prisma.item.update({
       where: { id: itemId },
-      data: { ...dto, costoProveedor, costoUnitarioVenta, precioVenta },
+      data: { ...dto, costoMaterial, subTotalMaterial, costoProveedor, costoUnitarioVenta, precioVenta },
     });
   }
 
@@ -76,6 +79,8 @@ export class PresupuestosService {
         desc: 'Nuevo ítem',
         unidad: 'u',
         cantidad: 1,
+        costoMaterial: 0,
+        subTotalMaterial: 0,
         costoUnitario: 0,
         costoProveedor: 0,
         rentabilidad: 30,
@@ -124,15 +129,22 @@ export class PresupuestosService {
       for (const item of etapa.items) {
         const ref = mapaRef.get(item.codigoCifras);
         if (!ref) continue;
-        const costoUnitario = fuente === 'VIBRARQ' && ref.costoVibrarq != null ? ref.costoVibrarq : ref.costoRef;
         const rentabilidad = item.rentabilidad ?? 30;
-        const costoUnitarioVenta = costoUnitario * (1 + rentabilidad / 100);
+        // costoRef = costo total (material + ejecución) según CIFRAS
+        const costoRef = fuente === 'VIBRARQ' && ref.costoVibrarq != null ? ref.costoVibrarq : ref.costoRef;
+        // col 4: material = costoRef × ratioMaterial
+        const costoMaterial = costoRef * ref.ratioMaterial;
+        const subTotalMaterial = costoMaterial * item.cantidad;
+        // col 6: ejecución proveedor = costoRef × (1 - ratioMaterial)
+        const costoUnitario = costoRef * (1 - ref.ratioMaterial);
         const costoProveedor = costoUnitario * item.cantidad;
+        // col 9: valor ejecución venta
+        const costoUnitarioVenta = costoUnitario * (1 + rentabilidad / 100);
         const precioVenta = costoUnitarioVenta * item.cantidad;
         updates.push(
           this.prisma.item.update({
             where: { id: item.id },
-            data: { costoUnitario, costoProveedor, costoUnitarioVenta, precioVenta },
+            data: { costoMaterial, subTotalMaterial, costoUnitario, costoProveedor, costoUnitarioVenta, precioVenta },
           }),
         );
       }
@@ -190,10 +202,12 @@ export class PresupuestosService {
                 desc: it.desc,
                 unidad: it.unidad,
                 cantidad: 0,
-                costoUnitario: it.costoRef,
+                costoMaterial: it.costoRef * it.ratioMaterial,
+                subTotalMaterial: 0,
+                costoUnitario: it.costoRef * (1 - it.ratioMaterial),
                 costoProveedor: 0,
                 rentabilidad: 30,
-                costoUnitarioVenta: it.costoRef * 1.3,
+                costoUnitarioVenta: it.costoRef * (1 - it.ratioMaterial) * 1.3,
                 precioVenta: 0,
                 dias: 0,
                 avance: 0,
@@ -234,10 +248,12 @@ export class PresupuestosService {
                 desc: it.desc,
                 unidad: it.unidad,
                 cantidad: 0,
-                costoUnitario: it.costoRef,
+                costoMaterial: it.costoRef * it.ratioMaterial,
+                subTotalMaterial: 0,
+                costoUnitario: it.costoRef * (1 - it.ratioMaterial),
                 costoProveedor: 0,
                 rentabilidad: 30,
-                costoUnitarioVenta: it.costoRef * 1.3,
+                costoUnitarioVenta: it.costoRef * (1 - it.ratioMaterial) * 1.3,
                 precioVenta: 0,
                 dias: 0,
                 avance: 0,
