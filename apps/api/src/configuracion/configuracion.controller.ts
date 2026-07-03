@@ -4,6 +4,7 @@ import { Public } from '../auth/public.decorator';
 import { Roles } from '../auth/roles.decorator';
 import { ConfiguracionService } from './configuracion.service';
 import { GoogleOauthService } from './google-oauth.service';
+import { InstagramOauthService } from './instagram-oauth.service';
 
 @Roles('SOCIO', 'COMMUNITY_MANAGER')
 @Controller('configuracion')
@@ -11,6 +12,7 @@ export class ConfiguracionController {
   constructor(
     private service: ConfiguracionService,
     private googleOauthService: GoogleOauthService,
+    private instagramOauthService: InstagramOauthService,
   ) {}
 
   @Get('integraciones')
@@ -39,6 +41,34 @@ export class ConfiguracionController {
   async googleCallback(@Query('code') code: string, @Res() res: Response) {
     await this.googleOauthService.handleCallback(code);
     res.redirect(`${process.env.FRONTEND_URL ?? 'http://localhost:5173'}/configuracion?drive=connected`);
+  }
+
+  @Public()
+  @Roles()
+  @Get('integraciones/instagram/connect')
+  connectInstagram(@Res() res: Response) {
+    res.redirect(this.instagramOauthService.getAuthUrl());
+  }
+
+  @Public()
+  @Roles()
+  @Get('integraciones/instagram/callback')
+  async instagramCallback(@Query('code') code: string, @Query('error') error: string, @Res() res: Response) {
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    if (error || !code) {
+      return res.redirect(`${frontendUrl}/configuracion?instagram=error`);
+    }
+    try {
+      await this.instagramOauthService.handleCallback(code);
+      res.redirect(`${frontendUrl}/configuracion?instagram=connected`);
+    } catch (e) {
+      res.redirect(`${frontendUrl}/configuracion?instagram=error`);
+    }
+  }
+
+  @Get('integraciones/instagram/sync')
+  syncInstagram() {
+    return this.instagramOauthService.syncMediaMetrics();
   }
 
   @Get('fuentes-costo')
