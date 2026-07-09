@@ -1,11 +1,13 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
+import * as path from 'node:path';
 import { Roles } from '../auth/roles.decorator';
 import { CreateCuentaCobrarDto } from './dto/create-cuenta-cobrar.dto';
 import { CreateCuentaPagarDto } from './dto/create-cuenta-pagar.dto';
 import { UpdateEstadoPagoDto } from './dto/update-estado-pago.dto';
 import { FinanzasService } from './finanzas.service';
+import { buildResumenEstadoPdf } from './resumen-estado-pdf';
 
 @Roles('SOCIO')
 @Controller('finanzas')
@@ -15,6 +17,21 @@ export class FinanzasController {
   @Get('resumen')
   resumen() {
     return this.finanzasService.resumen();
+  }
+
+  // ── Analítica (dashboard Inicio) ──
+  @Get('analitica')
+  analitica() {
+    return this.finanzasService.analitica();
+  }
+
+  // Informe ejecutivo en PDF: obras en marcha, caja, alertas, presupuestos del año
+  @Get('resumen-estado/pdf')
+  async resumenEstadoPdf(@Res() res: Response) {
+    const data = await this.finanzasService.analitica();
+    const url = buildResumenEstadoPdf(data);
+    const fileName = path.basename(url);
+    res.download(path.join(process.cwd(), 'uploads', 'informes', fileName), fileName);
   }
 
   // ── Gastos ──

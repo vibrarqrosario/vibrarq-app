@@ -55,6 +55,127 @@ export class FinanzasService {
     return { saldoCaja, porCobrar, porPagar, vencido, proyeccion: meses };
   }
 
+  // ── Analítica del estudio (dashboard Inicio + PDF resumen de estado) ──
+  async analitica() {
+    const hoy = new Date();
+    const inicioAnio = new Date(hoy.getFullYear(), 0, 1);
+
+    const [obras, presupuestosAnio, pagos, gastos, certificados, cuentasPagar, planSegmentos] = await Promise.all([
+      this.prisma.obra.findMany({
+        include: {
+          cliente: { select: { nombre: true } },
+          presupuestos: { where: { estado: 'APROBADO' }, include: { etapas: { include: { items: true } } } },
+        },
+      }),
+      this.prisma.presupuesto.findMany({ where: { fecha: { gte: inicioAnio } }, select: { fecha: true, estado: true } }),
+      this.prisma.pago.findMany(),
+      this.prisma.gasto.findMany({ select: { monto: true, fecha: true } }),
+      this.prisma.certificado.findMany({ include: { pagos: true } }),
+      this.prisma.cuentaPagar.findMany(),
+      this.prisma.planSegmento.findMany(),
+    ]);
+
+    // Días hábiles transcurridos entre dos fechas
+    const habilesEntre = (desde: Date, hasta: Date) => {
+      let n = 0;
+      const d = new Date(desde);
+      d.setHours(0, 0, 0, 0);
+      while (d <= hasta) {
+        if (d.getDay() !== 0 && d.getDay() !== 6) n++;
+        d.setDate(d.getDate() + 1);
+      }
+      return n;
+    };
+
+    const planPorPresupuesto = new Map<string, number>();
+    for (const s of planSegmentos) {
+      planPorPresupuesto.set(s.presupuestoId, Math.max(planPorPresupuesto.get(s.presupuestoId) ?? 0, s.inicio + s.dias));
+    }
+
+    type Alerta = { obraId: string; obra: string; tipo: 'RETRASO' | 'MARGEN' | 'COBRANZA'; detalle: string };
+    const alertas: Alerta[] = [];
+
+    const obrasActivas = obras
+      .map((o) => {
+        const items = o.presupuestos.flatMap((p) => p.etapas.flatMap((e) => e.items.filter((i) => i.cantidad > 0)));
+        if (items.length === 0) return null;
+        const venta = items.reduce((s, i) => s + i.subTotalMaterial + i.precioVenta, 0);
+        const costo = items.reduce((s, i) => s + i.subTotalMaterial + i.costoProveedor, 0);
+        const hecho = items.reduce((s, i) => s + (i.subTotalMaterial + i.precioVenta) * (i.avance / 100), 0);
+        const avance = venta > 0 ? Math.round((hecho / venta) * 100) : 0;
+        const margenPct = venta > 0 ? Math.round(((venta - costo) / venta) * 100) : 0;
+
+        // Plan: máximo fin de los segmentos guardados, o suma de días del presupuesto
+        let diasPlan = 0;
+        for (const p of o.presupuestos) {
+          diasPlan += planPorPresupuesto.get(p.id) ?? p.etapas.flatMap((e) => e.items).reduce((s, i) => s + i.dias, 0);
+        }
+
+        // Avance esperado según tiempo transcurrido (si hay fecha de inicio y plan)
+        let esperado: number | null = null;
+        if (o.fechaInicio && diasPlan > 0 && o.fechaInicio <= hoy) {
+          esperado = Math.min(100, Math.round((habilesEntre(o.fechaInicio, hoy) / diasPlan) * 100));
+          if (avance < 100 && esperado - avance > 15) {
+            alertas.push({ obraId: o.id, obra: o.nombre, tipo: 'RETRASO', detalle: `Avance ${avance}% vs ${esperado}% esperado según plan` });
+          }
+        }
+        if (margenPct < 25 && venta > 0) {
+          alertas.push({ obraId: o.id, obra: o.nombre, tipo: 'MARGEN', detalle: `Margen ${margenPct}% — por debajo del 25% objetivo` });
+        }
+        return { id: o.id, nombre: o.nombre, cliente: o.cliente.nombre, avance, esperado, venta, costo, margenPct };
+      })
+      .filter((o): o is NonNullable<typeof o> => o !== null)
+      .sort((a, b) => a.avance - b.avance);
+
+    // Certificados con saldo viejo (>30 días sin cobrar del todo)
+    const hace30 = new Date(hoy.getTime() - 30 * 24 * 3600 * 1000);
+    const obraNombre = new Map(obras.map((o) => [o.id, o.nombre]));
+    for (const c of certificados) {
+      const pagado = c.pagos.reduce((s, p) => s + p.monto, 0);
+      const saldo = c.totalVenta - pagado;
+      if (saldo > 0.01 && c.createdAt < hace30) {
+        alertas.push({
+          obraId: c.obraId,
+          obra: obraNombre.get(c.obraId) ?? '—',
+          tipo: 'COBRANZA',
+          detalle: `Certificado N° ${c.numero} con saldo $${Math.round(saldo).toLocaleString('es-AR')} hace más de 30 días`,
+        });
+      }
+    }
+
+    // Caja / por cobrar / por pagar
+    const saldoCaja = pagos.reduce((s, p) => s + p.monto, 0) - gastos.reduce((s, g) => s + g.monto, 0);
+    const porCobrar = certificados.reduce((s, c) => s + Math.max(0, c.totalVenta - c.pagos.reduce((x, p) => x + p.monto, 0)), 0);
+    const porPagar = cuentasPagar.filter((c) => c.estado !== 'PAGADO').reduce((s, c) => s + c.monto, 0);
+
+    // Presupuestos del año: enviados (todos) vs aceptados (APROBADO), por mes
+    const porMes = Array.from({ length: 12 }, (_, i) => ({
+      mes: new Date(hoy.getFullYear(), i, 1).toLocaleDateString('es-AR', { month: 'short' }),
+      enviados: 0,
+      aceptados: 0,
+    }));
+    for (const p of presupuestosAnio) {
+      const m = p.fecha.getMonth();
+      porMes[m].enviados++;
+      if (p.estado === 'APROBADO') porMes[m].aceptados++;
+    }
+    const presupuestos = {
+      anio: hoy.getFullYear(),
+      enviados: presupuestosAnio.length,
+      aceptados: presupuestosAnio.filter((p) => p.estado === 'APROBADO').length,
+      porMes: porMes.slice(0, hoy.getMonth() + 1),
+    };
+
+    return {
+      kpis: { obrasActivas: obrasActivas.filter((o) => o.avance < 100).length, saldoCaja, porCobrar, porPagar, alertas: alertas.length },
+      obras: obrasActivas,
+      alertas,
+      presupuestos,
+      cobradoAnio: pagos.filter((p) => p.fecha >= inicioAnio).reduce((s, p) => s + p.monto, 0),
+      gastadoAnio: gastos.filter((g) => g.fecha >= inicioAnio).reduce((s, g) => s + g.monto, 0),
+    };
+  }
+
   // ── Gastos ───────────────────────────────────────────
   findGastos() {
     return this.prisma.gasto.findMany({
