@@ -1,3 +1,4 @@
+# Requiere el secret RENDER_DEPLOY_HOOK (Settings > Secrets and variables > Actions)
 name: Deploy API a Render
 
 on:
