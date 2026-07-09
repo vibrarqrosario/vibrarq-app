@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/api';
+import { api, downloadFile } from '../../lib/api';
 import { money } from '../../lib/format';
 import type { Consolidado, Etapa, Presupuesto } from '../../types/presupuesto';
 
@@ -123,6 +123,20 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
                 style={{ ...srcBtnStyle, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' }}
               >
                 ✓ Confirmar presupuesto
+              </button>
+              <button
+                onClick={() => downloadFile(`/presupuestos/${budgetSel}/pdf?variant=cliente`, `Presupuesto-${presupuestoQuery.data?.numero ?? budgetSel}-cliente.pdf`)}
+                style={srcBtnStyle}
+                title="PDF para enviar al cliente (sin costos internos)"
+              >
+                ⬇ PDF cliente
+              </button>
+              <button
+                onClick={() => downloadFile(`/presupuestos/${budgetSel}/pdf?variant=proveedor`, `Presupuesto-${presupuestoQuery.data?.numero ?? budgetSel}-proveedor.pdf`)}
+                style={srcBtnStyle}
+                title="PDF interno con costos de ejecución del proveedor"
+              >
+                ⬇ PDF proveedor
               </button>
             </div>
           )}

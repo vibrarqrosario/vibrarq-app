@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import type { Response } from 'express';
+import * as path from 'node:path';
 import { Roles } from '../auth/roles.decorator';
 import { CreateAdicionalDto } from './dto/create-adicional.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
@@ -18,6 +20,20 @@ export class PresupuestosController {
       return { ...presupuesto, etapas: sanitizeForCliente(presupuesto.etapas) };
     }
     return presupuesto;
+  }
+
+  // Genera el PDF (cliente o proveedor) y lo devuelve como descarga.
+  @Roles('SOCIO')
+  @Get('presupuestos/:id/pdf')
+  async downloadPdf(
+    @Param('id') id: string,
+    @Query('variant') variant: 'cliente' | 'proveedor' = 'cliente',
+    @Res() res: Response,
+  ) {
+    const url = await this.presupuestosService.generarPdf(id, variant === 'proveedor' ? 'proveedor' : 'cliente');
+    if (!url) throw new NotFoundException('No se pudo generar el PDF');
+    const fileName = path.basename(url);
+    res.download(path.join(process.cwd(), 'uploads', 'presupuestos', fileName), fileName);
   }
 
   @Roles('SOCIO')

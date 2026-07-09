@@ -1,5 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildCertificadoPdf } from './certificado-pdf';
 import { CreateCertificadoDto } from './dto/create-certificado.dto';
@@ -9,64 +8,186 @@ export class CertificadosService {
   constructor(private prisma: PrismaService) {}
 
   async findAllForObra(obraId: string) {
-    return this.prisma.certificado.findMany({ where: { obraId }, orderBy: { createdAt: 'desc' } });
+    return this.prisma.certificado.findMany({ where: { obraId }, orderBy: { numero: 'desc' } });
   }
 
-  // Toma los ítems con avance>0 y cantidad>0 de TODOS los presupuestos de la obra para el período.
-  async create(obraId: string, dto: CreateCertificadoDto) {
+  // Planilla base para armar el próximo certificado: ítems de presupuestos APROBADOS
+  // con cantidad > 0, junto con lo ya certificado (anterior) por ítem.
+  async preparar(obraId: string) {
     const obra = await this.prisma.obra.findUnique({
       where: { id: obraId },
-      include: { presupuestos: { include: { etapas: { include: { items: true } } } } },
+      include: {
+        cliente: true,
+        presupuestos: {
+          where: { estado: 'APROBADO' },
+          include: { etapas: { include: { items: true } } },
+        },
+        certificados: { include: { items: true } },
+      },
     });
     if (!obra) throw new NotFoundException('Obra no encontrada');
 
-    const itemsConAvance = obra.presupuestos.flatMap((p) =>
+    // Cantidades ya certificadas por ítem (suma de "presente" de certificados anteriores)
+    const anteriorPorItem = new Map<string, number>();
+    for (const cert of obra.certificados) {
+      for (const ci of cert.items) {
+        anteriorPorItem.set(ci.itemId, (anteriorPorItem.get(ci.itemId) ?? 0) + ci.cantidadPresente);
+      }
+    }
+
+    const items = obra.presupuestos.flatMap((p) =>
       p.etapas.flatMap((et) =>
         et.items
-          .filter((it) => it.avance > 0 && it.cantidad > 0)
-          .map((it) => ({
-            itemId: it.id,
-            etapaCode: et.code,
-            etapaNombre: et.nombre,
-            codigoCifras: it.codigoCifras,
-            desc: it.desc,
-            avance: it.avance,
-            costo: it.cantidad * it.costoProveedor * (it.avance / 100),
-            venta: it.cantidad * it.precioVenta * (it.avance / 100),
-          })),
+          .filter((it) => it.cantidad > 0)
+          .map((it) => {
+            const anterior = anteriorPorItem.get(it.id) ?? 0;
+            return {
+              itemId: it.id,
+              presupuesto: p.numero,
+              etapaCode: et.code,
+              etapaNombre: et.nombre,
+              codigoCifras: it.codigoCifras,
+              desc: it.desc,
+              unidad: it.unidad,
+              cantidad: it.cantidad,
+              cantidadAnterior: anterior,
+              avanceAnteriorPct: it.cantidad > 0 ? Math.round((anterior / it.cantidad) * 100) : 0,
+            };
+          }),
       ),
     );
 
-    const totalCosto = itemsConAvance.reduce((s, it) => s + it.costo, 0);
-    const totalVenta = itemsConAvance.reduce((s, it) => s + it.venta, 0);
+    return {
+      numeroProximo: obra.certificados.length,
+      obraNombre: obra.nombre,
+      clienteNombre: obra.cliente?.nombre ?? null,
+      presupuestosAprobados: obra.presupuestos.length,
+      items,
+    };
+  }
+
+  // Crea el certificado N con avance por cantidad. La fecha es automática (createdAt);
+  // el número es secuencial por obra empezando en 0.
+  async create(obraId: string, dto: CreateCertificadoDto) {
+    const obra = await this.prisma.obra.findUnique({
+      where: { id: obraId },
+      include: {
+        cliente: true,
+        presupuestos: { where: { estado: 'APROBADO' }, include: { etapas: { include: { items: true } } } },
+        certificados: { include: { items: true } },
+      },
+    });
+    if (!obra) throw new NotFoundException('Obra no encontrada');
+    if (obra.presupuestos.length === 0) throw new BadRequestException('La obra no tiene presupuestos aprobados');
+
+    const avances = new Map((dto.items ?? []).map((i) => [i.itemId, i.cantidadPresente]));
+    if (avances.size === 0) throw new BadRequestException('Indicá el avance de al menos un ítem');
+
+    // Anterior acumulado por ítem
+    const anteriorPorItem = new Map<string, number>();
+    for (const cert of obra.certificados) {
+      for (const ci of cert.items) {
+        anteriorPorItem.set(ci.itemId, (anteriorPorItem.get(ci.itemId) ?? 0) + ci.cantidadPresente);
+      }
+    }
+
+    const itemsObra = obra.presupuestos.flatMap((p) => p.etapas.flatMap((et) => et.items.map((it) => ({ ...it, etapaCode: et.code, etapaNombre: et.nombre }))));
+
+    type Linea = {
+      itemId: string; etapaCode: string; etapaNombre: string; codigoCifras: string; desc: string; unidad: string;
+      cantidadTotal: number; cantidadAnterior: number; cantidadPresente: number;
+      costoUnitario: number; costoUnitarioVenta: number; avanceAcumPct: number;
+    };
+    const lineas: Linea[] = [];
+
+    for (const it of itemsObra) {
+      const presente = avances.get(it.id);
+      if (presente === undefined || presente <= 0) continue;
+      const anterior = anteriorPorItem.get(it.id) ?? 0;
+      if (anterior + presente > it.cantidad * 1.0001) {
+        throw new BadRequestException(
+          `"${it.desc}": el acumulado (${anterior + presente} ${it.unidad}) supera la cantidad contratada (${it.cantidad} ${it.unidad})`,
+        );
+      }
+      lineas.push({
+        itemId: it.id,
+        etapaCode: it.etapaCode,
+        etapaNombre: it.etapaNombre,
+        codigoCifras: it.codigoCifras,
+        desc: it.desc,
+        unidad: it.unidad,
+        cantidadTotal: it.cantidad,
+        cantidadAnterior: anterior,
+        cantidadPresente: presente,
+        costoUnitario: it.costoUnitario,
+        costoUnitarioVenta: it.costoUnitarioVenta,
+        avanceAcumPct: it.cantidad > 0 ? Math.round(((anterior + presente) / it.cantidad) * 100) : 0,
+      });
+    }
+    if (lineas.length === 0) throw new BadRequestException('Ningún ítem con avance válido');
+
+    const totalCosto = lineas.reduce((s, l) => s + l.costoUnitario * l.cantidadPresente, 0);
+    const totalVenta = lineas.reduce((s, l) => s + l.costoUnitarioVenta * l.cantidadPresente, 0);
+
+    const numero = obra.certificados.length;
+    const fecha = new Date();
+    const periodo = dto.periodo?.trim() || fecha.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
 
     const certificado = await this.prisma.certificado.create({
       data: {
         obraId,
-        periodo: dto.periodo,
+        numero,
+        periodo,
         totalCosto,
         totalVenta,
         items: {
-          create: itemsConAvance.map((it) => ({ itemId: it.itemId, avance: it.avance, costo: it.costo, venta: it.venta })),
+          create: lineas.map((l) => ({
+            itemId: l.itemId,
+            cantidadTotal: l.cantidadTotal,
+            cantidadAnterior: l.cantidadAnterior,
+            cantidadPresente: l.cantidadPresente,
+            avance: l.avanceAcumPct,
+            costo: l.costoUnitario * l.cantidadPresente,
+            venta: l.costoUnitarioVenta * l.cantidadPresente,
+          })),
         },
       },
     });
 
-    const pdfProveedorUrl = buildCertificadoPdf({
+    // Actualizar % de avance acumulado en cada ítem (lo usa la planificación)
+    await Promise.all(
+      lineas.map((l) => this.prisma.item.update({ where: { id: l.itemId }, data: { avance: l.avanceAcumPct } })),
+    );
+
+    // Ordenar por etapa para el PDF
+    const ordenadas = [...lineas].sort((a, b) => a.etapaCode.localeCompare(b.etapaCode) || a.codigoCifras.localeCompare(b.codigoCifras));
+
+    const pdfArgs = {
       certificadoId: certificado.id,
-      variante: 'proveedor',
       obraNombre: obra.nombre,
-      periodo: dto.periodo,
-      items: itemsConAvance.map((it) => ({ code: it.codigoCifras, desc: it.desc, etapa: it.etapaCode, avance: it.avance, monto: it.costo })),
-      total: totalCosto,
+      clienteNombre: obra.cliente?.nombre,
+      numero,
+      fecha,
+      periodo,
+    };
+    // Proveedor: columnas 6-7 (costo de ejecución) · Cliente: columnas 9-10 (valor de venta)
+    const pdfProveedorUrl = buildCertificadoPdf({
+      ...pdfArgs,
+      variante: 'proveedor',
+      items: ordenadas.map((l) => ({
+        code: l.codigoCifras, desc: l.desc, etapa: `${l.etapaCode} · ${l.etapaNombre}`, unidad: l.unidad,
+        cantidadTotal: l.cantidadTotal, cantidadAnterior: l.cantidadAnterior, cantidadPresente: l.cantidadPresente,
+        precioUnitario: l.costoUnitario,
+      })),
     });
     const pdfClienteUrl = buildCertificadoPdf({
-      certificadoId: certificado.id,
+      ...pdfArgs,
       variante: 'cliente',
-      obraNombre: obra.nombre,
-      periodo: dto.periodo,
-      items: itemsConAvance.map((it) => ({ code: it.codigoCifras, desc: it.desc, etapa: it.etapaCode, avance: it.avance, monto: it.venta })),
-      total: totalVenta,
+      items: ordenadas.map((l) => ({
+        code: l.codigoCifras, desc: l.desc, etapa: `${l.etapaCode} · ${l.etapaNombre}`, unidad: l.unidad,
+        cantidadTotal: l.cantidadTotal, cantidadAnterior: l.cantidadAnterior, cantidadPresente: l.cantidadPresente,
+        precioUnitario: l.costoUnitarioVenta,
+      })),
     });
 
     return this.prisma.certificado.update({

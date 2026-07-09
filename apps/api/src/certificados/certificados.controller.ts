@@ -31,6 +31,13 @@ export class CertificadosController {
     return certs;
   }
 
+  // Planilla base para el próximo certificado (ítems + avance anterior por cantidad)
+  @Roles('SOCIO')
+  @Get('preparar')
+  preparar(@Param('obraId') obraId: string) {
+    return this.certificadosService.preparar(obraId);
+  }
+
   @Roles('SOCIO')
   @Post()
   create(@Param('obraId') obraId: string, @Body() dto: CreateCertificadoDto) {

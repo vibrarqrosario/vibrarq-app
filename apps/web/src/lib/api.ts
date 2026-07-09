@@ -26,13 +26,24 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
-export async function downloadFile(path: string) {
+// Descarga con diálogo "guardar como" del navegador. Si no se pasa fileName, abre en otra pestaña.
+export async function downloadFile(path: string, fileName?: string) {
   const token = localStorage.getItem('vibrarq_token');
   const res = await fetch(`${BASE_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
   if (!res.ok) throw new ApiError(res.status, 'No se pudo descargar el archivo');
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
+  if (fileName) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } else {
+    window.open(url, '_blank');
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export const api = {

@@ -181,6 +181,7 @@ model Certificado {
   id              String            @id @default(cuid())
   obraId          String
   obra            Obra              @relation(fields: [obraId], references: [id])
+  numero          Int               @default(0)
   periodo         String
   totalCosto      Float
   totalVenta      Float
@@ -192,14 +193,18 @@ model Certificado {
 }
 
 model CertificadoItem {
-  id            String      @id @default(cuid())
-  certificadoId String
-  certificado   Certificado @relation(fields: [certificadoId], references: [id])
-  itemId        String
-  item          Item        @relation(fields: [itemId], references: [id])
-  avance        Int
-  costo         Float
-  venta         Float
+  id               String      @id @default(cuid())
+  certificadoId    String
+  certificado      Certificado @relation(fields: [certificadoId], references: [id])
+  itemId           String
+  item             Item        @relation(fields: [itemId], references: [id])
+  // Avance por cantidad: contratada (snapshot), anterior acumulada, presente
+  cantidadTotal    Float       @default(0)
+  cantidadAnterior Float       @default(0)
+  cantidadPresente Float       @default(0)
+  avance           Int // % acumulado al momento del certificado
+  costo            Float // monto presente proveedor (costoUnitario × cantidadPresente)
+  venta            Float // monto presente cliente (costoUnitarioVenta × cantidadPresente)
 }
 
 // ── Ambientes / moodboard / drive ─────────────────────

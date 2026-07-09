@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateAdicionalDto } from './dto/create-adicional.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
 import { avancePct, montoCosto, montoVenta, PresupuestoLike } from './presupuesto-calc';
+import { buildPresupuestoPdf } from './presupuesto-pdf';
 
 const PRESUPUESTO_INCLUDE = { etapas: { include: { items: true } } } as const;
 
@@ -37,6 +38,51 @@ export class PresupuestosService {
     if (!presupuesto || presupuesto.obra.clienteId !== user.clienteId) {
       throw new ForbiddenException('No tenés acceso a este presupuesto');
     }
+  }
+
+  // Genera el PDF descargable del presupuesto.
+  // cliente → columnas de venta (⑨⑩) + material · proveedor → costos de ejecución (⑥⑦)
+  async generarPdf(presupuestoId: string, variante: 'cliente' | 'proveedor') {
+    const presupuesto = await this.prisma.presupuesto.findUnique({
+      where: { id: presupuestoId },
+      include: { etapas: { include: { items: true } }, obra: { include: { cliente: true } } },
+    });
+    if (!presupuesto) throw new NotFoundException('Presupuesto no encontrado');
+
+    const cifras = await this.prisma.integracion.findFirst({ where: { proveedor: 'cifras' } });
+    const cifrasMeta = cifras?.configJson as { edicion?: number; fechaCierre?: string } | null;
+
+    const conMateriales = presupuesto.etapas.some((et) => et.items.some((it) => it.subTotalMaterial > 0));
+    let diasTotales = 0;
+    for (const et of presupuesto.etapas) for (const it of et.items) if (it.cantidad > 0) diasTotales += it.dias;
+
+    return buildPresupuestoPdf({
+      presupuestoId,
+      variante,
+      numero: presupuesto.numero,
+      nombre: presupuesto.nombre,
+      obraNombre: presupuesto.obra.nombre,
+      clienteNombre: presupuesto.obra.cliente?.nombre,
+      fecha: new Date(),
+      conMateriales,
+      diasTotales,
+      cifrasEdicion: cifrasMeta?.edicion ? `Revista CIFRAS #${cifrasMeta.edicion}${cifrasMeta.fechaCierre ? ` (cierre ${cifrasMeta.fechaCierre})` : ''}` : null,
+      etapas: presupuesto.etapas.map((et) => ({
+        code: et.code,
+        nombre: et.nombre,
+        items: et.items.map((it) => ({
+          code: it.codigoCifras,
+          desc: it.desc,
+          unidad: it.unidad,
+          cantidad: it.cantidad,
+          subTotalMaterial: it.subTotalMaterial,
+          precioUnitario: variante === 'proveedor' ? it.costoUnitario : it.costoUnitarioVenta,
+          subtotal: variante === 'proveedor' ? it.costoProveedor : it.precioVenta,
+          total: variante === 'proveedor' ? it.costoProveedor : it.subTotalMaterial + it.precioVenta,
+          dias: it.dias,
+        })),
+      })),
+    });
   }
 
   async updateItem(itemId: string, dto: UpdateItemDto) {
