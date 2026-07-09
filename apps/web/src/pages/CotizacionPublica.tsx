@@ -192,9 +192,15 @@ export function CotizacionPublica() {
             </button>
             <div className="section-label">Estimación</div>
             <h1 style={{ fontSize: 38, margin: '6px 0 4px' }}>{money(resultado.total)}</h1>
-            <p style={{ color: 'var(--muted)', marginBottom: 24 }}>
+            <p style={{ color: 'var(--muted)', marginBottom: 8 }}>
               Entre {money(resultado.low)} y {money(resultado.high)} · {money(resultado.porM2)}/m²
             </p>
+            {resultado.fuente && (
+              <p style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, marginBottom: 24 }}>
+                Valores según {resultado.fuente.nombre}
+                {resultado.fuente.fechaCierre ? ` · cierre ${resultado.fuente.fechaCierre}` : ''}
+              </p>
+            )}
             <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
               <div style={kpiCard}>
                 <div className="section-label">Materiales</div>
@@ -213,12 +219,40 @@ export function CotizacionPublica() {
                 <div>
                   <div style={{ fontSize: 12.5 }}>{d.nombre}</div>
                   <div style={{ height: 5, borderRadius: 3, background: 'var(--surf2)', marginTop: 3 }}>
-                    <div style={{ height: '100%', width: `${(d.pct / 18) * 100}%`, background: 'var(--green)', borderRadius: 3 }} />
+                    <div style={{ height: '100%', width: `${(d.pct / 20) * 100}%`, background: 'var(--green)', borderRadius: 3 }} />
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', fontSize: 12.5 }}>{money(d.monto)}</div>
               </div>
             ))}
+
+            {resultado.composicion && (
+              <div style={{ marginTop: 24, padding: '14px 16px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--surf)' }}>
+                <div className="section-label" style={{ marginBottom: 10 }}>Composición del precio</div>
+                {[
+                  ['Costo directo (materiales + ejecución)', resultado.composicion.costoDirecto],
+                  [`Gastos generales (${resultado.composicion.gastosGeneralesPct}%)`, resultado.composicion.gastosGenerales],
+                  [`Beneficios (${resultado.composicion.beneficiosPct}%)`, resultado.composicion.beneficios],
+                  [`IVA (${resultado.composicion.ivaPct}%)`, resultado.composicion.iva],
+                ].map(([label, monto]) => (
+                  <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 5 }}>
+                    <span style={{ color: 'var(--ink2)' }}>{label as string}</span>
+                    <span>{money(monto as number)}</span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, borderTop: '1px solid var(--line)', paddingTop: 8, marginTop: 6 }}>
+                  <span>Precio final estimado</span>
+                  <span>{money(resultado.total)}</span>
+                </div>
+              </div>
+            )}
+
+            {resultado.fuente && (
+              <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6, marginTop: 16 }}>
+                {resultado.fuente.aclaraciones}
+              </p>
+            )}
+
             <button onClick={() => setScreen('exact')} style={{ ...primaryBtn, marginTop: 20 }}>
               Pedir cotización exacta con esta base
             </button>

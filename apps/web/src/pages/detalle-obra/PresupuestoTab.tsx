@@ -37,6 +37,11 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
     queryFn: () => api.get<Consolidado>(`/obras/${obraId}/consolidado`),
     enabled: isConsolidado,
   });
+  const cifrasMetaQuery = useQuery({
+    queryKey: ['config', 'cifras-meta'],
+    queryFn: () => api.get<{ edicion: number | null; fechaCierre: string | null } | null>('/configuracion/cifras/meta'),
+    staleTime: 10 * 60 * 1000,
+  });
 
   const etapas: Etapa[] = isConsolidado ? consolidadoQuery.data?.etapas ?? [] : presupuestoQuery.data?.etapas ?? [];
   const loading = isConsolidado ? consolidadoQuery.isLoading : presupuestoQuery.isLoading;
@@ -107,7 +112,9 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
           <div style={{ fontSize: 12.5, color: totales.mpct < 28 ? 'var(--bad)' : 'var(--good)' }}>margen {totales.mpct}%</div>
           {!isConsolidado && (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <span style={{ fontSize: 11, color: 'var(--muted)' }}>Fuente:</span>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                Fuente{cifrasMetaQuery.data?.edicion ? ` (CIFRAS #${cifrasMetaQuery.data.edicion}${cifrasMetaQuery.data.fechaCierre ? ` · ${cifrasMetaQuery.data.fechaCierre}` : ''})` : ''}:
+              </span>
               {(['CIFRAS', 'VIBRARQ'] as const).map((f) => (
                 <button key={f} onClick={() => aplicarFuente.mutate(f)} disabled={aplicarFuente.isPending} style={srcBtnStyle}>{f}</button>
               ))}

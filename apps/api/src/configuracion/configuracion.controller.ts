@@ -1,10 +1,11 @@
-import { Controller, Get, Param, Patch, Query, Res } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { Public } from '../auth/public.decorator';
 import { Roles } from '../auth/roles.decorator';
 import { ConfiguracionService } from './configuracion.service';
 import { GoogleOauthService } from './google-oauth.service';
 import { InstagramOauthService } from './instagram-oauth.service';
+import { CifrasSyncService } from './cifras-sync.service';
 
 @Roles('SOCIO', 'COMMUNITY_MANAGER')
 @Controller('configuracion')
@@ -13,7 +14,19 @@ export class ConfiguracionController {
     private service: ConfiguracionService,
     private googleOauthService: GoogleOauthService,
     private instagramOauthService: InstagramOauthService,
+    private cifrasSyncService: CifrasSyncService,
   ) {}
+
+  @Get('cifras/meta')
+  async cifrasMeta() {
+    this.cifrasSyncService.ensureFresh();
+    return this.cifrasSyncService.getMeta();
+  }
+
+  @Post('cifras/sync')
+  cifrasSync() {
+    return this.cifrasSyncService.sync();
+  }
 
   @Get('integraciones')
   findIntegraciones() {

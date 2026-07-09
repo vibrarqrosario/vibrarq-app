@@ -6,6 +6,13 @@ import { money } from '../lib/format';
 
 type Integracion = { id: string; proveedor: string; conectado: boolean };
 type FuenteCosto = { id: string; fuente: string; activa: boolean; lastSync: string | null };
+type CifrasMeta = {
+  edicion: number | null;
+  fechaCierre: string | null;
+  dolarBNA: number | null;
+  itemsImportados: number;
+  lastSync: string;
+} | null;
 type IndiceRubro = { rubro: string; nombreRubro: string; manoObraPromedio: number; materialPromedio: number; variacionMensualPct: number };
 
 const INTEGRACION_LABEL: Record<string, string> = { 'google-drive': 'Google Drive', instagram: 'Instagram', email: 'Correo' };
@@ -42,6 +49,7 @@ export function Configuracion() {
 
   const { data: integraciones } = useQuery({ queryKey: ['config', 'integraciones'], queryFn: () => api.get<Integracion[]>('/configuracion/integraciones') });
   const { data: fuentes } = useQuery({ queryKey: ['config', 'fuentes'], queryFn: () => api.get<FuenteCosto[]>('/configuracion/fuentes-costo') });
+  const { data: cifrasMeta } = useQuery({ queryKey: ['config', 'cifras-meta'], queryFn: () => api.get<CifrasMeta>('/configuracion/cifras/meta') });
   const { data: indice } = useQuery({
     queryKey: ['config', 'indice'],
     queryFn: () => api.get<IndiceRubro[]>('/configuracion/indice-costos'),
@@ -55,6 +63,18 @@ export function Configuracion() {
   const activarFuente = useMutation({
     mutationFn: (id: string) => api.patch(`/configuracion/fuentes-costo/${id}/activar`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['config'] }),
+  });
+  const syncCifras = useMutation({
+    mutationFn: () => api.post<CifrasMeta>('/configuracion/cifras/sync'),
+    onSuccess: (meta) => {
+      setToast(`CIFRAS sincronizada: edición #${meta?.edicion ?? '—'} · ${meta?.itemsImportados ?? 0} ítems ✓`);
+      setTimeout(() => setToast(null), 5000);
+      qc.invalidateQueries({ queryKey: ['config'] });
+    },
+    onError: () => {
+      setToast('Error al sincronizar CIFRAS. Reintentá en unos minutos.');
+      setTimeout(() => setToast(null), 5000);
+    },
   });
 
   return (
@@ -136,22 +156,52 @@ export function Configuracion() {
       )}
 
       {tab === 'fuentes' && (
-        <div style={{ border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
-          {(fuentes ?? []).map((f) => (
-            <div key={f.id} style={rowStyle}>
-              <span style={{ fontWeight: 600 }}>{FUENTE_LABEL[f.fuente] ?? f.fuente}</span>
-              <span style={{ color: 'var(--muted)', fontSize: 12.5 }}>
-                {f.lastSync ? `Sincronizado ${new Date(f.lastSync).toLocaleDateString('es-AR')}` : 'Sin sincronizar'}
-              </span>
-              {f.activa ? (
-                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--good)' }}>Fuente activa</span>
-              ) : (
-                <button onClick={() => activarFuente.mutate(f.id)} style={smallBtn}>
-                  Usar esta fuente
-                </button>
+        <div>
+          {/* Estado de la revista CIFRAS */}
+          <div style={{ border: '1px solid var(--line)', borderRadius: 12, padding: '16px 18px', marginBottom: 16, background: 'var(--surf)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                Revista CIFRAS {cifrasMeta?.edicion ? `#${cifrasMeta.edicion}` : ''}
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink2)' }}>
+                {cifrasMeta
+                  ? <>Cierre edición: {cifrasMeta.fechaCierre ?? '—'} · Dólar BNA: ${cifrasMeta.dolarBNA?.toLocaleString('es-AR') ?? '—'} · {cifrasMeta.itemsImportados} ítems importados</>
+                  : 'Nunca sincronizada — los presupuestos usan valores de ejemplo'}
+              </div>
+              {cifrasMeta?.lastSync && (
+                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
+                  Última sincronización: {new Date(cifrasMeta.lastSync).toLocaleString('es-AR')} · se actualiza sola cada mes
+                </div>
               )}
             </div>
-          ))}
+            <button onClick={() => syncCifras.mutate()} disabled={syncCifras.isPending} style={{ ...smallBtn, background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }}>
+              {syncCifras.isPending ? 'Sincronizando…' : '↻ Sincronizar ahora'}
+            </button>
+          </div>
+
+          <div style={{ border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+            {(fuentes ?? []).map((f) => (
+              <div key={f.id} style={rowStyle}>
+                <span style={{ fontWeight: 600 }}>{FUENTE_LABEL[f.fuente] ?? f.fuente}</span>
+                <span style={{ color: 'var(--muted)', fontSize: 12.5 }}>
+                  {f.lastSync ? `Sincronizado ${new Date(f.lastSync).toLocaleDateString('es-AR')}` : 'Sin sincronizar'}
+                </span>
+                {f.activa ? (
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--good)' }}>Fuente activa</span>
+                ) : (
+                  <button onClick={() => activarFuente.mutate(f.id)} style={smallBtn}>
+                    Usar esta fuente
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.6, marginTop: 14, maxWidth: 720 }}>
+            Los costos de CIFRAS son <strong>costos directos</strong> (materiales + ejecución) de la Región Litoral-Centro,
+            sin gastos generales (25%), beneficios (15%) ni IVA (21%). Los presupuestos de Vibrarq aplican la rentabilidad
+            configurada por ítem sobre el costo de ejecución. Honorarios profesionales sugeridos: 6% s/costo de obra.
+          </p>
         </div>
       )}
 

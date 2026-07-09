@@ -20,4 +20,20 @@ export type EstimarResult = {
   high: number;
   porM2: number;
   desglose: { nombre: string; pct: number; monto: number }[];
+  composicion?: {
+    costoDirecto: number;
+    gastosGenerales: number;
+    gastosGeneralesPct: number;
+    beneficios: number;
+    beneficiosPct: number;
+    iva: number;
+    ivaPct: number;
+    honorariosSugeridosPct: number;
+  };
+  fuente?: {
+    nombre: string;
+    fechaCierre: string | null;
+    tipologia: string;
+    aclaraciones: string;
+  };
 };
