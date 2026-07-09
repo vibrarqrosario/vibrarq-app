@@ -22,6 +22,22 @@ export class PresupuestosController {
     return presupuesto;
   }
 
+  // ── Planificación (Gantt) ──
+  @Roles('SOCIO')
+  @Get('presupuestos/:id/plan')
+  getPlan(@Param('id') id: string) {
+    return this.presupuestosService.getPlan(id);
+  }
+
+  @Roles('SOCIO')
+  @Post('presupuestos/:id/plan')
+  savePlan(
+    @Param('id') id: string,
+    @Body('segmentos') segmentos: { etapaCode: string; segmento: number; inicio: number; dias: number }[],
+  ) {
+    return this.presupuestosService.savePlan(id, segmentos ?? []);
+  }
+
   // Genera el PDF (cliente o proveedor) y lo devuelve como descarga.
   @Roles('SOCIO')
   @Get('presupuestos/:id/pdf')

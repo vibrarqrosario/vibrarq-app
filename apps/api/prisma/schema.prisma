@@ -163,6 +163,20 @@ model Item {
   certificadoItems     CertificadoItem[]
 }
 
+// Planificación (Gantt): tramos por rubro en días hábiles. Una etapa puede
+// partirse en varios segmentos (obra en etapas). "inicio" es el offset en
+// días hábiles desde el inicio de la obra.
+model PlanSegmento {
+  id            String @id @default(cuid())
+  presupuestoId String
+  etapaCode     String
+  segmento      Int    @default(0)
+  inicio        Int
+  dias          Int
+
+  @@unique([presupuestoId, etapaCode, segmento])
+}
+
 model CatalogoCifrasItem {
   id             String      @id @default(cuid())
   codigo         String      @unique

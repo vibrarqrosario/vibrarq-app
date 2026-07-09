@@ -40,6 +40,70 @@ export class PresupuestosService {
     }
   }
 
+  // ── Planificación (Gantt) ────────────────────────────
+  // Devuelve las filas del Gantt: por rubro, días del presupuesto, avance
+  // certificado y los segmentos planificados (por defecto: cadena secuencial).
+  async getPlan(presupuestoId: string) {
+    const presupuesto = await this.prisma.presupuesto.findUnique({
+      where: { id: presupuestoId },
+      include: { etapas: { include: { items: true } }, obra: true },
+    });
+    if (!presupuesto) throw new NotFoundException('Presupuesto no encontrado');
+
+    const guardados = await this.prisma.planSegmento.findMany({
+      where: { presupuestoId },
+      orderBy: [{ etapaCode: 'asc' }, { segmento: 'asc' }],
+    });
+    const porEtapa = new Map<string, { segmento: number; inicio: number; dias: number }[]>();
+    for (const s of guardados) {
+      if (!porEtapa.has(s.etapaCode)) porEtapa.set(s.etapaCode, []);
+      porEtapa.get(s.etapaCode)!.push({ segmento: s.segmento, inicio: s.inicio, dias: s.dias });
+    }
+
+    let cursor = 0;
+    const filas = presupuesto.etapas
+      .map((et) => {
+        const items = et.items.filter((it) => it.cantidad > 0);
+        const diasPresupuesto = items.reduce((s, it) => s + it.dias, 0);
+        const total = items.reduce((s, it) => s + it.subTotalMaterial + it.precioVenta, 0);
+        const certificado = items.reduce((s, it) => s + (it.subTotalMaterial + it.precioVenta) * (it.avance / 100), 0);
+        const avancePct = total > 0 ? Math.round((certificado / total) * 100) : 0;
+        return { code: et.code, nombre: et.nombre, diasPresupuesto, total, avancePct };
+      })
+      .filter((f) => f.total > 0)
+      .map((f) => {
+        const dias = Math.max(1, f.diasPresupuesto);
+        const segmentos = porEtapa.get(f.code) ?? [{ segmento: 0, inicio: cursor, dias }];
+        // el cursor por defecto siempre avanza según el presupuesto,
+        // para que las etapas sin plan guardado queden encadenadas
+        cursor += dias;
+        return { ...f, segmentos };
+      });
+
+    return {
+      fechaInicio: presupuesto.obra.fechaInicio?.toISOString() ?? null,
+      filas,
+    };
+  }
+
+  async savePlan(presupuestoId: string, segmentos: { etapaCode: string; segmento: number; inicio: number; dias: number }[]) {
+    const presupuesto = await this.prisma.presupuesto.findUnique({ where: { id: presupuestoId } });
+    if (!presupuesto) throw new NotFoundException('Presupuesto no encontrado');
+    await this.prisma.planSegmento.deleteMany({ where: { presupuestoId } });
+    if (segmentos.length > 0) {
+      await this.prisma.planSegmento.createMany({
+        data: segmentos.map((s) => ({
+          presupuestoId,
+          etapaCode: s.etapaCode,
+          segmento: s.segmento,
+          inicio: Math.max(0, Math.round(s.inicio)),
+          dias: Math.max(1, Math.round(s.dias)),
+        })),
+      });
+    }
+    return this.getPlan(presupuestoId);
+  }
+
   // Genera el PDF descargable del presupuesto.
   // cliente → columnas de venta (⑨⑩) + material · proveedor → costos de ejecución (⑥⑦)
   async generarPdf(presupuestoId: string, variante: 'cliente' | 'proveedor') {
