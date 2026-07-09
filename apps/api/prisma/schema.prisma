@@ -108,6 +108,7 @@ model Obra {
   moodboard     MoodboardItem[]
   carpetasDrive CarpetaDrive[]
   cuentasCobrar CuentaCobrar[]
+  pagos         Pago[]
   posts         Post[]
   feedPosts     FeedPost[]
   eventos       Evento[]
@@ -203,7 +204,22 @@ model Certificado {
   pdfProveedorUrl String?
   pdfClienteUrl   String?
   items           CertificadoItem[]
+  pagos           Pago[]
   createdAt       DateTime          @default(now())
+}
+
+// Pagos recibidos del cliente, imputables a la obra y opcionalmente a un
+// certificado puntual. El cliente queda determinado por la obra.
+model Pago {
+  id            String       @id @default(cuid())
+  obraId        String
+  obra          Obra         @relation(fields: [obraId], references: [id])
+  certificadoId String?
+  certificado   Certificado? @relation(fields: [certificadoId], references: [id])
+  monto         Float
+  fecha         DateTime     @default(now())
+  medio         String? // transferencia / efectivo / cheque / otro
+  nota          String?
 }
 
 model CertificadoItem {

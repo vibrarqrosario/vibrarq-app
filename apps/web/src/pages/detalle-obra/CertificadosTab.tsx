@@ -13,7 +13,20 @@ type Certificado = {
   pdfProveedorUrl?: string | null;
   pdfClienteUrl: string | null;
   createdAt: string;
+  pagado: number;
+  saldo: number;
 };
+
+type Pago = {
+  id: string;
+  monto: number;
+  fecha: string;
+  medio: string | null;
+  nota: string | null;
+  certificado: { numero: number } | null;
+};
+
+const ESTADO_PAGO_COLOR: Record<string, string> = { PAGADO: 'var(--good)', PARCIAL: 'var(--warn)', PENDIENTE: 'var(--muted)', VENCIDO: 'var(--bad)' };
 
 type PrepararItem = {
   itemId: string;
@@ -40,11 +53,43 @@ export function CertificadosTab({ obraId }: { obraId: string }) {
   const [armando, setArmando] = useState(false);
   const [avances, setAvances] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  // Pago: certificado al que se le está registrando un pago (null = ninguno)
+  const [pagando, setPagando] = useState<string | null>(null);
+  const [pagoForm, setPagoForm] = useState({ monto: '', medio: 'transferencia', nota: '' });
   const qc = useQueryClient();
 
   const { data: certificados, isLoading } = useQuery({
     queryKey: ['certificados', obraId],
     queryFn: () => api.get<Certificado[]>(`/obras/${obraId}/certificados`),
+  });
+
+  const { data: pagos } = useQuery({
+    queryKey: ['pagos', obraId],
+    queryFn: () => api.get<Pago[]>(`/obras/${obraId}/certificados/pagos`),
+  });
+
+  const registrarPago = useMutation({
+    mutationFn: (certificadoId: string) =>
+      api.post(`/obras/${obraId}/certificados/pagos`, {
+        certificadoId,
+        monto: parseFloat(pagoForm.monto) || 0,
+        medio: pagoForm.medio,
+        nota: pagoForm.nota || undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['certificados', obraId] });
+      qc.invalidateQueries({ queryKey: ['pagos', obraId] });
+      setPagando(null);
+      setPagoForm({ monto: '', medio: 'transferencia', nota: '' });
+    },
+  });
+
+  const eliminarPago = useMutation({
+    mutationFn: (pagoId: string) => api.delete(`/obras/${obraId}/certificados/pagos/${pagoId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['certificados', obraId] });
+      qc.invalidateQueries({ queryKey: ['pagos', obraId] });
+    },
   });
 
   const { data: preparar } = useQuery({
@@ -127,7 +172,7 @@ export function CertificadosTab({ obraId }: { obraId: string }) {
 
           {preparar && preparar.items.length === 0 && (
             <div style={{ padding: 16, color: 'var(--muted)', fontSize: 13 }}>
-              No hay ítems para certificar. El presupuesto tiene que estar <strong>confirmado (APROBADO)</strong> y con cantidades cargadas.
+              No hay ítems para certificar. El presupuesto tiene que estar <strong>confirmado (CONTRATADO)</strong> y con cantidades cargadas.
             </div>
           )}
 
@@ -195,39 +240,107 @@ export function CertificadosTab({ obraId }: { obraId: string }) {
       {/* Historial */}
       <div style={{ border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
         {(certificados ?? []).map((c) => (
-          <div
-            key={c.id}
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderTop: '1px solid var(--lineSoft)' }}
-          >
-            <div>
-              <div style={{ fontWeight: 600 }}>
-                Certificado N° {c.numero} <span style={{ fontWeight: 400, color: 'var(--muted)' }}>· {c.periodo}</span>
+          <div key={c.id} style={{ borderTop: '1px solid var(--lineSoft)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>
+                  Certificado N° {c.numero} <span style={{ fontWeight: 400, color: 'var(--muted)' }}>· {c.periodo}</span>
+                  <span style={{ marginLeft: 10, fontSize: 11, fontWeight: 700, color: ESTADO_PAGO_COLOR[c.estadoPago] ?? 'var(--muted)' }}>
+                    {c.estadoPago}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  {new Date(c.createdAt).toLocaleDateString('es-AR')} ·{' '}
+                  {c.totalCosto != null ? `proveedor ${money(c.totalCosto)} · ` : ''}cliente {money(c.totalVenta)}
+                  {c.pagado > 0 && <> · pagado {money(c.pagado)}</>}
+                  {c.saldo > 0.01 && <> · <span style={{ color: 'var(--warn)', fontWeight: 600 }}>saldo {money(c.saldo)}</span></>}
+                </div>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                {new Date(c.createdAt).toLocaleDateString('es-AR')} ·{' '}
-                {c.totalCosto != null ? `proveedor ${money(c.totalCosto)} · ` : ''}cliente {money(c.totalVenta)} · {c.estadoPago}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {c.pdfProveedorUrl && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                {c.saldo > 0.01 && (
+                  <button onClick={() => { setPagando(pagando === c.id ? null : c.id); setPagoForm({ monto: String(Math.round(c.saldo)), medio: 'transferencia', nota: '' }); }} style={{ ...linkStyle, color: '#fff', background: 'var(--green)', border: 'none' }}>
+                    + Pago
+                  </button>
+                )}
+                {c.pdfProveedorUrl && (
+                  <button
+                    onClick={() => downloadFile(`/obras/${obraId}/certificados/${c.id}/pdf?variant=proveedor`, `Certificado-${c.numero}-proveedor.pdf`)}
+                    style={linkStyle}
+                  >
+                    ⬇ PDF proveedor
+                  </button>
+                )}
                 <button
-                  onClick={() => downloadFile(`/obras/${obraId}/certificados/${c.id}/pdf?variant=proveedor`, `Certificado-${c.numero}-proveedor.pdf`)}
+                  onClick={() => downloadFile(`/obras/${obraId}/certificados/${c.id}/pdf?variant=cliente`, `Certificado-${c.numero}-cliente.pdf`)}
                   style={linkStyle}
                 >
-                  ⬇ PDF proveedor
+                  ⬇ PDF cliente
                 </button>
-              )}
-              <button
-                onClick={() => downloadFile(`/obras/${obraId}/certificados/${c.id}/pdf?variant=cliente`, `Certificado-${c.numero}-cliente.pdf`)}
-                style={linkStyle}
-              >
-                ⬇ PDF cliente
-              </button>
+              </div>
             </div>
+
+            {/* Mini-form de pago */}
+            {pagando === c.id && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '0 16px 14px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>Registrar pago:</span>
+                <input
+                  type="number" min={0} placeholder="Monto"
+                  value={pagoForm.monto}
+                  onChange={(e) => setPagoForm((f) => ({ ...f, monto: e.target.value }))}
+                  style={{ ...inputMini, width: 120 }}
+                />
+                <select value={pagoForm.medio} onChange={(e) => setPagoForm((f) => ({ ...f, medio: e.target.value }))} style={inputMini}>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="efectivo">Efectivo</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="otro">Otro</option>
+                </select>
+                <input
+                  placeholder="Nota (opcional)"
+                  value={pagoForm.nota}
+                  onChange={(e) => setPagoForm((f) => ({ ...f, nota: e.target.value }))}
+                  style={{ ...inputMini, flex: 1, minWidth: 140 }}
+                />
+                <button
+                  onClick={() => registrarPago.mutate(c.id)}
+                  disabled={!(parseFloat(pagoForm.monto) > 0) || registrarPago.isPending}
+                  style={btnStyle}
+                >
+                  {registrarPago.isPending ? 'Guardando…' : 'Confirmar pago'}
+                </button>
+                <button onClick={() => setPagando(null)} style={cancelBtn}>Cancelar</button>
+              </div>
+            )}
           </div>
         ))}
         {certificados?.length === 0 && <div style={{ padding: 16, color: 'var(--muted)', fontSize: 13 }}>Sin certificados todavía.</div>}
       </div>
+
+      {/* Pagos de la obra */}
+      {(pagos?.length ?? 0) > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <div className="section-label" style={{ marginBottom: 8 }}>Pagos recibidos</div>
+          <div style={{ border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+            {pagos!.map((p) => (
+              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid var(--lineSoft)', fontSize: 12.5 }}>
+                <div>
+                  <strong>{money(p.monto)}</strong>
+                  <span style={{ color: 'var(--muted)', marginLeft: 8 }}>
+                    {new Date(p.fecha).toLocaleDateString('es-AR')}
+                    {p.certificado != null && <> · Certificado N° {p.certificado.numero}</>}
+                    {p.medio && <> · {p.medio}</>}
+                    {p.nota && <> · {p.nota}</>}
+                  </span>
+                </div>
+                <button onClick={() => eliminarPago.mutate(p.id)} title="Eliminar pago" style={{ fontSize: 12, color: 'var(--bad)', background: 'transparent', border: 'none', cursor: 'pointer' }}>✕</button>
+              </div>
+            ))}
+            <div style={{ padding: '10px 16px', borderTop: '1px solid var(--line)', fontSize: 12.5, fontWeight: 700, textAlign: 'right' }}>
+              Total cobrado: {money(pagos!.reduce((s, p) => s + p.monto, 0))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -238,3 +351,4 @@ const linkStyle: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, color:
 const thStyle: React.CSSProperties = { padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' };
 const tdStyle: React.CSSProperties = { padding: '6px 10px', textAlign: 'right' };
 const numInput: React.CSSProperties = { width: 70, textAlign: 'right', padding: '4px 6px', borderRadius: 5, border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontSize: 12 };
+const inputMini: React.CSSProperties = { padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontSize: 12 };

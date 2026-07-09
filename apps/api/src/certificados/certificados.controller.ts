@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, NotFoundException, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import * as path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
@@ -29,6 +29,28 @@ export class CertificadosController {
       return certs.map(({ totalCosto, pdfProveedorUrl, ...rest }) => rest);
     }
     return certs;
+  }
+
+  // ── Pagos recibidos (por obra, imputables a un certificado) ──
+  @Roles('SOCIO')
+  @Get('pagos')
+  findPagos(@Param('obraId') obraId: string) {
+    return this.certificadosService.findPagos(obraId);
+  }
+
+  @Roles('SOCIO')
+  @Post('pagos')
+  registrarPago(
+    @Param('obraId') obraId: string,
+    @Body() dto: { certificadoId?: string; monto: number; medio?: string; nota?: string; fecha?: string },
+  ) {
+    return this.certificadosService.registrarPago(obraId, dto);
+  }
+
+  @Roles('SOCIO')
+  @Delete('pagos/:pagoId')
+  eliminarPago(@Param('pagoId') pagoId: string) {
+    return this.certificadosService.eliminarPago(pagoId);
   }
 
   // Planilla base para el próximo certificado (ítems + avance anterior por cantidad)

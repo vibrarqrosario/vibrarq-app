@@ -8,7 +8,68 @@ export class CertificadosService {
   constructor(private prisma: PrismaService) {}
 
   async findAllForObra(obraId: string) {
-    return this.prisma.certificado.findMany({ where: { obraId }, orderBy: { numero: 'desc' } });
+    const certs = await this.prisma.certificado.findMany({
+      where: { obraId },
+      orderBy: { numero: 'desc' },
+      include: { pagos: { orderBy: { fecha: 'desc' } } },
+    });
+    return certs.map((c) => {
+      const pagado = c.pagos.reduce((s, p) => s + p.monto, 0);
+      return { ...c, pagado, saldo: c.totalVenta - pagado };
+    });
+  }
+
+  // ── Pagos recibidos ──────────────────────────────────
+  async findPagos(obraId: string) {
+    return this.prisma.pago.findMany({
+      where: { obraId },
+      orderBy: { fecha: 'desc' },
+      include: { certificado: { select: { numero: true } } },
+    });
+  }
+
+  async registrarPago(obraId: string, dto: { certificadoId?: string; monto: number; medio?: string; nota?: string; fecha?: string }) {
+    const obra = await this.prisma.obra.findUnique({ where: { id: obraId } });
+    if (!obra) throw new NotFoundException('Obra no encontrada');
+    if (!dto.monto || dto.monto <= 0) throw new BadRequestException('El monto debe ser mayor a 0');
+
+    if (dto.certificadoId) {
+      const cert = await this.prisma.certificado.findUnique({ where: { id: dto.certificadoId } });
+      if (!cert || cert.obraId !== obraId) throw new NotFoundException('Certificado no encontrado en esta obra');
+    }
+
+    const pago = await this.prisma.pago.create({
+      data: {
+        obraId,
+        certificadoId: dto.certificadoId ?? null,
+        monto: dto.monto,
+        medio: dto.medio,
+        nota: dto.nota,
+        fecha: dto.fecha ? new Date(dto.fecha) : new Date(),
+      },
+    });
+
+    if (dto.certificadoId) await this.actualizarEstadoPago(dto.certificadoId);
+    return pago;
+  }
+
+  async eliminarPago(pagoId: string) {
+    const pago = await this.prisma.pago.findUnique({ where: { id: pagoId } });
+    if (!pago) throw new NotFoundException('Pago no encontrado');
+    await this.prisma.pago.delete({ where: { id: pagoId } });
+    if (pago.certificadoId) await this.actualizarEstadoPago(pago.certificadoId);
+    return { ok: true };
+  }
+
+  private async actualizarEstadoPago(certificadoId: string) {
+    const cert = await this.prisma.certificado.findUnique({
+      where: { id: certificadoId },
+      include: { pagos: true },
+    });
+    if (!cert) return;
+    const pagado = cert.pagos.reduce((s, p) => s + p.monto, 0);
+    const estadoPago = pagado >= cert.totalVenta - 0.01 ? 'PAGADO' : pagado > 0 ? 'PARCIAL' : 'PENDIENTE';
+    await this.prisma.certificado.update({ where: { id: certificadoId }, data: { estadoPago } });
   }
 
   // Planilla base para armar el próximo certificado: ítems de presupuestos APROBADOS

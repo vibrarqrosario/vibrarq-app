@@ -147,7 +147,7 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
       {confirmando && (
         <div style={{ background: 'var(--surf)', border: '1px solid var(--accent)', borderRadius: 10, padding: 16, marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
           <span style={{ flex: 1, fontSize: 13 }}>
-            ¿Confirmar presupuesto? Se eliminarán los ítems con cantidad 0 y el estado pasará a <strong>APROBADO</strong>.
+            ¿Confirmar presupuesto? Se eliminarán los ítems con cantidad 0 y el estado pasará a <strong>CONTRATADO</strong>.
             Plazo estimado: <strong>{diasTotales} días hábiles</strong>.
           </span>
           <button onClick={() => confirmar.mutate()} disabled={confirmar.isPending} style={{ ...srcBtnStyle, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' }}>Confirmar</button>

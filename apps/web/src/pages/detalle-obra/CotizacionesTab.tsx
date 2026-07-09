@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import { money } from '../../lib/format';
 import type { ObraDetalle } from '../../types/presupuesto';
 
-const ESTADO_LABEL: Record<string, string> = { ENVIADO: 'Enviado', PROCESO: 'En proceso', APROBADO: 'Aprobado' };
+const ESTADO_LABEL: Record<string, string> = { ENVIADO: 'Enviado', PROCESO: 'En proceso', APROBADO: 'Contratado' };
 const ESTADO_COLOR: Record<string, string> = {
   ENVIADO: 'var(--ink2)',
   PROCESO: 'var(--warn)',
@@ -107,7 +107,7 @@ export function CotizacionesTab({
           <div>
             <div style={{ fontWeight: 700 }}>Obra completa · consolidado</div>
             <div style={{ fontSize: 12.5, color: 'var(--ink2)' }}>
-              {obra.consolidadoCount} presupuesto(s) aprobado(s) · {money(obra.consolidadoMonto)}
+              {obra.consolidadoCount} presupuesto(s) contratado(s) · {money(obra.consolidadoMonto)}
             </div>
           </div>
           <button onClick={() => onSelect('consol', 'ppto')} style={btnStyle}>
