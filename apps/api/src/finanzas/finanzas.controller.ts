@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { Roles } from '../auth/roles.decorator';
 import { CreateCuentaCobrarDto } from './dto/create-cuenta-cobrar.dto';
 import { CreateCuentaPagarDto } from './dto/create-cuenta-pagar.dto';
@@ -13,6 +15,43 @@ export class FinanzasController {
   @Get('resumen')
   resumen() {
     return this.finanzasService.resumen();
+  }
+
+  // ── Gastos ──
+  @Get('gastos')
+  findGastos() {
+    return this.finanzasService.findGastos();
+  }
+
+  // multipart/form-data: campos concepto, monto, obraId?, fecha? + archivo "factura" (imagen o pdf)
+  @Post('gastos')
+  @UseInterceptors(FileInterceptor('factura'))
+  createGasto(
+    @Body() body: { concepto: string; monto: string; obraId?: string; fecha?: string },
+    @UploadedFile() factura?: { buffer: Buffer; mimetype: string },
+  ) {
+    return this.finanzasService.createGasto(
+      { concepto: body.concepto, monto: parseFloat(body.monto), obraId: body.obraId || undefined, fecha: body.fecha || undefined },
+      factura,
+    );
+  }
+
+  @Delete('gastos/:id')
+  deleteGasto(@Param('id') id: string) {
+    return this.finanzasService.deleteGasto(id);
+  }
+
+  @Get('gastos/:id/factura')
+  async getFactura(@Param('id') id: string, @Res() res: Response) {
+    const { data, mime } = await this.finanzasService.getFactura(id);
+    res.setHeader('Content-Type', mime);
+    res.send(data);
+  }
+
+  // ── Pagos recibidos (para movimientos) ──
+  @Get('pagos')
+  findPagos() {
+    return this.finanzasService.findPagos();
   }
 
   @Get('cuentas-cobrar')

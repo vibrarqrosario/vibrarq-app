@@ -46,6 +46,21 @@ export async function downloadFile(path: string, fileName?: string) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+// POST multipart/form-data (para subir archivos). No fija Content-Type: el browser arma el boundary.
+export async function postForm<T>(path: string, form: FormData): Promise<T> {
+  const token = localStorage.getItem('vibrarq_token');
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: res.statusText }));
+    throw new ApiError(res.status, body.message ?? 'Error de red');
+  }
+  return res.json();
+}
+
 export const api = {
   get: <T,>(path: string) => request<T>(path),
   post: <T,>(path: string, body?: unknown) =>

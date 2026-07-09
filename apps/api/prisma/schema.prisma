@@ -109,6 +109,7 @@ model Obra {
   carpetasDrive CarpetaDrive[]
   cuentasCobrar CuentaCobrar[]
   pagos         Pago[]
+  gastos        Gasto[]
   posts         Post[]
   feedPosts     FeedPost[]
   eventos       Evento[]
@@ -281,6 +282,21 @@ model ArchivoDrive {
 }
 
 // ── Finanzas ───────────────────────────────────────────
+// Gastos del estudio: imputables a una obra (y por ende a su cliente) o
+// generales del estudio (obraId null). La factura se guarda en la base
+// porque el disco de Render es efímero.
+model Gasto {
+  id          String   @id @default(cuid())
+  obraId      String?
+  obra        Obra?    @relation(fields: [obraId], references: [id])
+  concepto    String
+  monto       Float
+  fecha       DateTime @default(now())
+  facturaData Bytes?
+  facturaMime String?
+  createdAt   DateTime @default(now())
+}
+
 model MovimientoCaja {
   id       String         @id @default(cuid())
   tipo     TipoMovimiento
