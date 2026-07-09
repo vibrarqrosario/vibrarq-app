@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, downloadFile } from '../../lib/api';
 import { money } from '../../lib/format';
@@ -368,6 +368,8 @@ function ItemRow({ item, isConsolidado, onUpdate, onRemove }: {
 function EditableText({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
   const [local, setLocal] = useState(value);
   const [dirty, setDirty] = useState(false);
+  // Refrescar con el valor recalculado por el servidor (si no se está editando)
+  useEffect(() => { if (!dirty) setLocal(value); }, [value, dirty]);
   const commit = () => { if (dirty && local !== value) onCommit(local); setDirty(false); };
   return (
     <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
@@ -382,6 +384,8 @@ function EditableText({ value, onCommit }: { value: string; onCommit: (v: string
 function EditableNumber({ value, onCommit, width = 64, suffix }: { value: number; onCommit: (v: number) => void; width?: number; suffix?: string }) {
   const [local, setLocal] = useState(String(value));
   const [dirty, setDirty] = useState(false);
+  // Refrescar con el valor recalculado por el servidor (ej: ⑨ y ⑩ tras editar ⑥ u ⑧)
+  useEffect(() => { if (!dirty) setLocal(String(value)); }, [value, dirty]);
 
   const commit = () => {
     const raw = local.replace(/^=/, '');
