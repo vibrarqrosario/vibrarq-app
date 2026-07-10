@@ -9,6 +9,8 @@ export type ObraResumen = {
   margen: number;
   margenPct: number;
   avanceGlobal: number;
+  estado: 'SIN_CONTRATAR' | 'INICIO' | 'EJECUCION' | 'FINALIZADA';
+  etapaActual: string | null;
   adicionalesCount: number;
 };
 

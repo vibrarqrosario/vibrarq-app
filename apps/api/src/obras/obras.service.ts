@@ -43,6 +43,24 @@ export class ObrasService {
     const avanceGlobal = aprobados.length
       ? Math.round(aprobados.reduce((s, p) => s + avancePct(p) * montoVenta(p), 0) / (montoVentaTotal || 1))
       : 0;
+
+    // Etapa actual: primer rubro (por código) que todavía no está al 100%
+    let etapaActual: string | null = null;
+    const etapasOrdenadas = aprobados.flatMap((p) => p.etapas).sort((a, b) => a.code.localeCompare(b.code));
+    for (const et of etapasOrdenadas) {
+      const items = et.items.filter((i) => i.cantidad > 0);
+      if (items.length === 0) continue;
+      const tot = items.reduce((s, i) => s + i.subTotalMaterial + i.precioVenta, 0);
+      const hecho = items.reduce((s, i) => s + (i.subTotalMaterial + i.precioVenta) * (i.avance / 100), 0);
+      if (tot > 0 && hecho / tot < 0.999) {
+        etapaActual = et.nombre;
+        break;
+      }
+    }
+
+    const estado =
+      aprobados.length === 0 ? 'SIN_CONTRATAR' : avanceGlobal >= 100 ? 'FINALIZADA' : avanceGlobal <= 0 ? 'INICIO' : 'EJECUCION';
+
     return {
       id: obra.id,
       nombre: obra.nombre,
@@ -54,6 +72,8 @@ export class ObrasService {
       margen,
       margenPct,
       avanceGlobal,
+      estado,
+      etapaActual,
       adicionalesCount: obra.presupuestos.filter((p) => (p as any).tipo === 'ADICIONAL').length,
     };
   }

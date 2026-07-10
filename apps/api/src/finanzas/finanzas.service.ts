@@ -178,11 +178,63 @@ export class FinanzasService {
       porMes: porMes.slice(0, hoy.getMonth() + 1),
     };
 
+    // Resumen financiero de la cartera
+    const ventaTotal = obrasActivas.reduce((s, o) => s + o.venta, 0);
+    const costoTotal = obrasActivas.reduce((s, o) => s + o.costo, 0);
+
+    // Distribución de costos: materiales vs mano de obra (ejecución)
+    let costoMateriales = 0;
+    let costoManoObra = 0;
+    for (const o of obras) {
+      for (const p of o.presupuestos) {
+        for (const e of p.etapas) {
+          for (const i of e.items) {
+            if (i.cantidad <= 0) continue;
+            costoMateriales += i.subTotalMaterial;
+            costoManoObra += i.costoProveedor;
+          }
+        }
+      }
+    }
+    const costoBase = costoMateriales + costoManoObra;
+    const distribucion = {
+      materiales: costoMateriales,
+      manoObra: costoManoObra,
+      materialesPct: costoBase > 0 ? Math.round((costoMateriales / costoBase) * 100) : 0,
+      manoObraPct: costoBase > 0 ? Math.round((costoManoObra / costoBase) * 100) : 0,
+    };
+
+    // Certificado mensual: total certificado al cliente en los últimos 6 meses
+    const certificadosPorMes: { mes: string; monto: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const ref = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      const monto = certificados
+        .filter((c) => c.createdAt.getFullYear() === ref.getFullYear() && c.createdAt.getMonth() === ref.getMonth())
+        .reduce((s, c) => s + c.totalVenta, 0);
+      certificadosPorMes.push({ mes: ref.toLocaleDateString('es-AR', { month: 'short' }), monto });
+    }
+
+    // Certificados a emitir: obras activas sin certificado generado este mes
+    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const obrasConCertEsteMes = new Set(certificados.filter((c) => c.createdAt >= inicioMes).map((c) => c.obraId));
+    const certificadosAEmitir = obrasActivas.filter((o) => o.avance < 100 && !obrasConCertEsteMes.has(o.id)).length;
+
     return {
-      kpis: { obrasActivas: obrasActivas.filter((o) => o.avance < 100).length, saldoCaja, porCobrar, porPagar, alertas: alertas.length },
+      kpis: {
+        obrasActivas: obrasActivas.filter((o) => o.avance < 100).length,
+        obrasTotales: obrasActivas.length,
+        saldoCaja,
+        porCobrar,
+        porPagar,
+        alertas: alertas.length,
+        certificadosAEmitir,
+      },
       obras: obrasActivas,
       alertas,
       presupuestos,
+      financiero: { ventaTotal, costoTotal, margenBruto: ventaTotal - costoTotal },
+      distribucion,
+      certificadosPorMes,
       cobradoAnio: pagos.filter((p) => p.fecha >= inicioAnio).reduce((s, p) => s + p.monto, 0),
       gastadoAnio: gastos.filter((g) => g.fecha >= inicioAnio).reduce((s, g) => s + g.monto, 0),
     };
