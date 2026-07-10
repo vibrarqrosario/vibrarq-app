@@ -30,6 +30,7 @@ export type Presupuesto = {
   nombre: string;
   detalle: string | null;
   estado: 'ENVIADO' | 'PROCESO' | 'APROBADO';
+  rentabilidadObjetivo: number;
   etapas: Etapa[];
   montoVenta: number;
   montoCosto: number;

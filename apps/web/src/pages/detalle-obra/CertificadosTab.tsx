@@ -79,6 +79,8 @@ export function CertificadosTab({ obraId }: { obraId: string }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['certificados', obraId] });
       qc.invalidateQueries({ queryKey: ['pagos', obraId] });
+      qc.invalidateQueries({ queryKey: ['finanzas'] });
+      qc.invalidateQueries({ queryKey: ['analitica'] });
       setPagando(null);
       setPagoForm({ monto: '', medio: 'transferencia', nota: '' });
     },
@@ -89,6 +91,8 @@ export function CertificadosTab({ obraId }: { obraId: string }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['certificados', obraId] });
       qc.invalidateQueries({ queryKey: ['pagos', obraId] });
+      qc.invalidateQueries({ queryKey: ['finanzas'] });
+      qc.invalidateQueries({ queryKey: ['analitica'] });
     },
   });
 

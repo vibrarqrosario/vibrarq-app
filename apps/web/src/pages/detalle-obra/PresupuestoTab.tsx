@@ -77,6 +77,12 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
     onSuccess: () => { setConfirmando(false); qc.invalidateQueries({ queryKey: ['presupuesto', budgetSel] }); },
   });
 
+  const setRentabilidad = useMutation({
+    mutationFn: (valor: number) => api.post(`/presupuestos/${budgetSel}/rentabilidad`, { valor }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['presupuesto', budgetSel] }),
+  });
+  const [rentObra, setRentObra] = useState<string | null>(null);
+
   const totales = useMemo(() => {
     let totalCliente = 0; let totalProveedor = 0;
     for (const et of etapas) { const t = etapaTotales(et); totalCliente += t.totalCliente; totalProveedor += t.totalProveedor; }
@@ -112,6 +118,22 @@ export function PresupuestoTab({ obraId, budgetSel }: { obraId: string; budgetSe
           <div style={{ fontSize: 12.5, color: totales.mpct < 28 ? 'var(--bad)' : 'var(--good)' }}>margen {totales.mpct}%</div>
           {!isConsolidado && (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>Rentab. obra:</span>
+              <input
+                type="number" min={0} max={200}
+                value={rentObra ?? String(presupuestoQuery.data?.rentabilidadObjetivo ?? 30)}
+                onChange={(e) => setRentObra(e.target.value)}
+                style={{ width: 52, textAlign: 'right', padding: '3px 5px', borderRadius: 5, border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontSize: 11.5 }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>%</span>
+              <button
+                onClick={() => { const v = parseFloat(rentObra ?? ''); if (!Number.isNaN(v)) { setRentabilidad.mutate(v); setRentObra(null); } }}
+                disabled={rentObra === null || setRentabilidad.isPending}
+                title="Aplica esta rentabilidad a todos los ítems del presupuesto"
+                style={{ ...srcBtnStyle, opacity: rentObra === null ? 0.5 : 1 }}
+              >
+                {setRentabilidad.isPending ? 'Aplicando…' : 'Aplicar a todos'}
+              </button>
               <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                 Fuente{cifrasMetaQuery.data?.edicion ? ` (CIFRAS #${cifrasMetaQuery.data.edicion}${cifrasMetaQuery.data.fechaCierre ? ` · ${cifrasMetaQuery.data.fechaCierre}` : ''})` : ''}:
               </span>

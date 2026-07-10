@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthContext';
 
 const NAV = [
@@ -15,10 +16,19 @@ const NAV = [
 
 export function InternalLayout() {
   const { user, logout } = useAuth();
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = 'blueprint';
   }, []);
+
+  // Refresca todos los datos en pantalla (por si el servidor demoró en responder)
+  const refresh = async () => {
+    setRefreshing(true);
+    await qc.invalidateQueries();
+    setTimeout(() => setRefreshing(false), 600);
+  };
 
   return (
     <div style={{ display: 'flex', minHeight: '100svh' }}>
@@ -54,6 +64,23 @@ export function InternalLayout() {
           </NavLink>
         ))}
         <div style={{ flex: 1 }} />
+        <button
+          onClick={refresh}
+          disabled={refreshing}
+          title="Refrescar todos los datos"
+          style={{
+            marginBottom: 8,
+            padding: '9px 12px',
+            borderRadius: 8,
+            border: '1px solid var(--line)',
+            background: 'transparent',
+            color: 'var(--ink2)',
+            cursor: 'pointer',
+            fontSize: 13,
+          }}
+        >
+          {refreshing ? '↻ Actualizando…' : '↻ Refrescar datos'}
+        </button>
         <div style={{ fontSize: 12, color: 'var(--muted)', padding: '0 12px' }}>{user?.nombre}</div>
         <button
           onClick={logout}

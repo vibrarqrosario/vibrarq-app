@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 
 type Analitica = {
   kpis: { obrasActivas: number; saldoCaja: number; porCobrar: number; porPagar: number; alertas: number };
-  obras: { id: string; nombre: string; cliente: string; avance: number; esperado: number | null; venta: number; margenPct: number }[];
+  obras: { id: string; nombre: string; cliente: string; avance: number; esperado: number | null; venta: number; margenPct: number; margenObjetivoPct: number }[];
   alertas: { obraId: string; obra: string; tipo: 'RETRASO' | 'MARGEN' | 'COBRANZA'; detalle: string }[];
   presupuestos: { anio: number; enviados: number; aceptados: number; porMes: { mes: string; enviados: number; aceptados: number }[] };
   cobradoAnio: number;
@@ -99,7 +99,9 @@ export function Inicio() {
                       <span>
                         {o.avance}%
                         {o.esperado != null && <span style={{ color: o.avance < o.esperado - 15 ? 'var(--bad)' : 'var(--muted)', fontSize: 11 }}> / esp. {o.esperado}%</span>}
-                        <span style={{ marginLeft: 8, color: o.margenPct < 25 ? 'var(--bad)' : 'var(--good)', fontSize: 11 }}>mg {o.margenPct}%</span>
+                        <span style={{ marginLeft: 8, color: o.margenPct < o.margenObjetivoPct - 5 ? 'var(--bad)' : 'var(--good)', fontSize: 11 }}>
+                          mg {o.margenPct}% / obj. {o.margenObjetivoPct}%
+                        </span>
                       </span>
                     </div>
                     <div style={{ position: 'relative', height: 10, background: 'var(--surf2)', borderRadius: 5, overflow: 'hidden' }}>
@@ -150,12 +152,12 @@ export function Inicio() {
                   <Tooltip formatter={(v) => money(Number(v))} />
                   <Bar dataKey="venta" name="Monto contratado">
                     {data.obras.map((o) => (
-                      <Cell key={o.id} fill={o.margenPct < 25 ? 'var(--bad)' : 'var(--green)'} />
+                      <Cell key={o.id} fill={o.margenPct < o.margenObjetivoPct - 5 ? 'var(--bad)' : 'var(--green)'} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              <div style={{ fontSize: 11, color: 'var(--muted)' }}>En rojo: obras con margen por debajo del 25% objetivo.</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>En rojo: obras con margen por debajo del objetivo fijado para esa obra.</div>
             </div>
           )}
 

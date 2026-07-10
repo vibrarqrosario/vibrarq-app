@@ -52,6 +52,7 @@ export function CobranzasFlujo() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['finanzas'] });
+      qc.invalidateQueries({ queryKey: ['analitica'] });
       setShowGasto(false);
       setGasto({ concepto: '', monto: '', obraId: '', fecha: '' });
       setGastoError(null);
@@ -62,7 +63,10 @@ export function CobranzasFlujo() {
 
   const eliminarGasto = useMutation({
     mutationFn: (id: string) => api.delete(`/finanzas/gastos/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['finanzas'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['finanzas'] });
+      qc.invalidateQueries({ queryKey: ['analitica'] });
+    },
   });
 
   if (isLoading || !resumen) return <p style={{ color: 'var(--muted)' }}>Cargando…</p>;

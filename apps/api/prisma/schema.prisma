@@ -116,17 +116,19 @@ model Obra {
 }
 
 model Presupuesto {
-  id            String        @id @default(cuid())
-  obraId        String
-  obra          Obra          @relation(fields: [obraId], references: [id])
-  tipo          BudgetType
-  numero        String
-  nombre        String
-  detalle       String?
-  estado        BudgetStatus  @default(ENVIADO)
-  fecha         DateTime
-  etapas        Etapa[]
-  ordenesCompra OrdenCompra[]
+  id                   String        @id @default(cuid())
+  obraId               String
+  obra                 Obra          @relation(fields: [obraId], references: [id])
+  tipo                 BudgetType
+  numero               String
+  nombre               String
+  detalle              String?
+  estado               BudgetStatus  @default(ENVIADO)
+  fecha                DateTime
+  // Rentabilidad objetivo fijada para esta obra/presupuesto (%)
+  rentabilidadObjetivo Float         @default(30)
+  etapas               Etapa[]
+  ordenesCompra        OrdenCompra[]
 }
 
 model Etapa {

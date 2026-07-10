@@ -82,6 +82,13 @@ export class PresupuestosController {
     return this.presupuestosService.aplicarFuente(presupuestoId, fuente);
   }
 
+  // Fija la rentabilidad objetivo de la obra y la aplica a todos los ítems
+  @Roles('SOCIO')
+  @Post('presupuestos/:presupuestoId/rentabilidad')
+  setRentabilidad(@Param('presupuestoId') presupuestoId: string, @Body('valor') valor: number) {
+    return this.presupuestosService.setRentabilidad(presupuestoId, Number(valor));
+  }
+
   @Roles('SOCIO')
   @Post('presupuestos/:presupuestoId/confirmar')
   confirmar(@Param('presupuestoId') presupuestoId: string) {

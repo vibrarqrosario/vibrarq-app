@@ -40,6 +40,37 @@ export class PresupuestosService {
     }
   }
 
+  // Fija la rentabilidad objetivo del presupuesto y la aplica a todos los
+  // ítems (recalcula valor de venta y subtotales de cada uno).
+  async setRentabilidad(presupuestoId: string, valor: number) {
+    const presupuesto = await this.prisma.presupuesto.findUnique({
+      where: { id: presupuestoId },
+      include: { etapas: { include: { items: true } } },
+    });
+    if (!presupuesto) throw new NotFoundException('Presupuesto no encontrado');
+    const rentabilidad = Math.max(0, valor);
+
+    await this.prisma.presupuesto.update({
+      where: { id: presupuestoId },
+      data: { rentabilidadObjetivo: rentabilidad },
+    });
+
+    const updates: Promise<unknown>[] = [];
+    for (const etapa of presupuesto.etapas) {
+      for (const item of etapa.items) {
+        const costoUnitarioVenta = item.costoUnitario * (1 + rentabilidad / 100);
+        updates.push(
+          this.prisma.item.update({
+            where: { id: item.id },
+            data: { rentabilidad, costoUnitarioVenta, precioVenta: costoUnitarioVenta * item.cantidad },
+          }),
+        );
+      }
+    }
+    await Promise.all(updates);
+    return this.findOne(presupuestoId);
+  }
+
   // ── Planificación (Gantt) ────────────────────────────
   // Devuelve las filas del Gantt: por rubro, días del presupuesto, avance
   // certificado y los segmentos planificados (por defecto: cadena secuencial).

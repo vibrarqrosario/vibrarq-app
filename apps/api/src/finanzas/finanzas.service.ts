@@ -105,6 +105,17 @@ export class FinanzasService {
         const avance = venta > 0 ? Math.round((hecho / venta) * 100) : 0;
         const margenPct = venta > 0 ? Math.round(((venta - costo) / venta) * 100) : 0;
 
+        // Margen esperado según la rentabilidad objetivo fijada en cada presupuesto de la obra
+        const ventaEsperada = o.presupuestos.reduce(
+          (s, p) =>
+            s +
+            p.etapas
+              .flatMap((e) => e.items.filter((i) => i.cantidad > 0))
+              .reduce((x, i) => x + i.subTotalMaterial + i.costoUnitario * (1 + p.rentabilidadObjetivo / 100) * i.cantidad, 0),
+          0,
+        );
+        const margenObjetivoPct = ventaEsperada > 0 ? Math.round(((ventaEsperada - costo) / ventaEsperada) * 100) : 0;
+
         // Plan: máximo fin de los segmentos guardados, o suma de días del presupuesto
         let diasPlan = 0;
         for (const p of o.presupuestos) {
@@ -119,10 +130,11 @@ export class FinanzasService {
             alertas.push({ obraId: o.id, obra: o.nombre, tipo: 'RETRASO', detalle: `Avance ${avance}% vs ${esperado}% esperado según plan` });
           }
         }
-        if (margenPct < 25 && venta > 0) {
-          alertas.push({ obraId: o.id, obra: o.nombre, tipo: 'MARGEN', detalle: `Margen ${margenPct}% — por debajo del 25% objetivo` });
+        // Alerta si el margen real quedó más de 5 puntos abajo del objetivo fijado para la obra
+        if (venta > 0 && margenObjetivoPct > 0 && margenPct < margenObjetivoPct - 5) {
+          alertas.push({ obraId: o.id, obra: o.nombre, tipo: 'MARGEN', detalle: `Margen ${margenPct}% — objetivo de la obra ${margenObjetivoPct}%` });
         }
-        return { id: o.id, nombre: o.nombre, cliente: o.cliente.nombre, avance, esperado, venta, costo, margenPct };
+        return { id: o.id, nombre: o.nombre, cliente: o.cliente.nombre, avance, esperado, venta, costo, margenPct, margenObjetivoPct };
       })
       .filter((o): o is NonNullable<typeof o> => o !== null)
       .sort((a, b) => a.avance - b.avance);
